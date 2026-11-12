@@ -1,0 +1,14 @@
+id: backend-batch-evaluate
+name: Nightly case evaluation (backend only)
+tool: python-batch
+version: 0.1.0
+role: original
+owner: unassigned (demo)
+process: batch-evaluate
+objective: Backend-only automation with no UI. Reads NEW cases with SQL and evaluates each through the API.
+runner: command
+command: [python, batch.py]
+arguments: {}
+requires:
+  - {app: qaqc, operation: evaluate-case, interface: cases-api}
+  - {app: qaqc, interface: cases-db, entity: case}

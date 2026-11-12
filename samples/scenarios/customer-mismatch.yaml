@@ -1,0 +1,65 @@
+id: customer-mismatch
+title: Loan belongs to another customer
+description: The loan record names a different customer than the case.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-qc-review
+inputs:
+  case_id: QC-1004
+assertions:
+- id: case-state
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1004
+  expect:
+    state: EXCEPTION
+  critical: true
+- id: runner-status
+  type: output
+  path: status
+  equals: DONE
+  critical: true
+- id: host-memo-count
+  type: count
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001004'
+  equals: 1
+  critical: true
+- id: host-memo-code
+  type: rows
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001004'
+  each:
+    code: QCHOLD
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001004'
+  expect:
+    status: HOLD
+  critical: true
+- id: note-count
+  type: count
+  app: qaqc
+  entity: note
+  where:
+    case_id: QC-1004
+  equals: 1
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 1

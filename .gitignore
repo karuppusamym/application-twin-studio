@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+workspace/
+.claude/
+# The Word blueprint is kept local; ARCHITECTURE.md is the public design record.
+docs/*.docx

@@ -1,0 +1,28 @@
+# Document repository dependency simulator.
+schema_version: "1.0"
+application_id: documents
+name: Document Repository
+spec_version: "0.1.0"
+interfaces:
+  - {id: documents-api, protocol: http}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: false, status: modeled}
+entities:
+  document:
+    key: document_id
+    fields:
+      document_id: string
+      customer_id: string
+      doc_type: string
+      status: {type: string, enum: [RECEIVED, REQUESTED, REJECTED]}
+errors:
+  DOCUMENT_NOT_FOUND: {status: 404, message: Document not found}
+operations:
+  - id: get-document
+    interface: documents-api
+    route: GET /documents/{document_id}
+    verification: demonstration
+    steps:
+      - load: {entity: document, key: $path.document_id, not_found: DOCUMENT_NOT_FOUND}
+      - respond: {status: 200, body: $document}

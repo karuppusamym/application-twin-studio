@@ -1,0 +1,14 @@
+id: uipath-legacy-branch-report
+name: Branch exception report (legacy IE + desktop)
+tool: uipath
+version: 3.2.0
+role: original
+owner: unassigned (demo)
+process: branch-report
+objective: Demonstrates honest blocking - uses Internet Explorer, a Windows desktop app, Excel, custom code, SQL Server and mail.
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_PortalUrl: "{{branchportal.web}}"
+  in_ReportPath: "C:/reports/exceptions.xlsx"
+outputs: {}

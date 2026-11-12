@@ -1,0 +1,2 @@
+{"name": "BranchExceptionReport", "main": "Main.xaml", "projectVersion": "3.2.0", "studioVersion": "21.10.0",
+ "dependencies": {"UiPath.Excel.Activities": "[2.11.4]", "UiPath.Database.Activities": "[1.5.0]", "UiPath.Mail.Activities": "[1.12.2]"}}

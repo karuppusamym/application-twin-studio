@@ -1,0 +1,56 @@
+id: missing-document
+title: Document still requested
+description: The income proof was requested but not received. Case waits for evidence; no host memo.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-qc-review
+inputs:
+  case_id: QC-1002
+assertions:
+- id: case-state
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1002
+  expect:
+    state: PENDING_EVIDENCE
+  critical: true
+- id: runner-status
+  type: output
+  path: status
+  equals: DONE
+  critical: true
+- id: host-memo-count
+  type: count
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001002'
+  equals: 0
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001002'
+  expect:
+    status: ACTIVE
+  critical: true
+- id: note-count
+  type: count
+  app: qaqc
+  entity: note
+  where:
+    case_id: QC-1002
+  equals: 1
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 1

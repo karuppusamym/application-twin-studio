@@ -1,0 +1,24 @@
+id: agentic-loan-qc-review
+name: Loan QC Review (agentic replacement)
+tool: agentic-python
+version: 0.1.0
+role: replacement
+replaces: uipath-loan-qc-review
+owner: unassigned (demo)
+process: loan-qc-review
+objective: Same business outcome as the UiPath original, API-first, with a tool-using agent loop.
+runner: command
+command: [python, agent.py]
+arguments: {}
+# Generic manifest: what the agent needs from the twins (reviewed by hand, not inferred).
+requires:
+  - {app: qaqc, operation: get-case, interface: cases-api}
+  - {app: qaqc, operation: evaluate-case, interface: cases-api}
+  - {app: qaqc, operation: add-note, interface: cases-api}
+  - {app: corebank, operation: logon, interface: host-3270}
+  - {app: corebank, operation: post-memo, interface: host-3270}
+# Named defect switches for negative testing (the oracle must detect a wrong replacement).
+variants:
+  defective-skip-memo:
+    description: Converted agent forgets to post the host memo.
+    env: {AGENT_BUG: skip_memo}

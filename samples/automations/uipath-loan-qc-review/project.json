@@ -1,0 +1,14 @@
+{
+  "name": "LoanQcReview",
+  "description": "Sample original automation: reviews a QA/QC case in the web workbench, posts a memo on the 3270 host, adds a case note through the API.",
+  "main": "Main.xaml",
+  "projectVersion": "1.0.0",
+  "studioVersion": "24.10.0",
+  "expressionLanguage": "VisualBasic",
+  "dependencies": {
+    "UiPath.System.Activities": "[24.10.0]",
+    "UiPath.UIAutomation.Activities": "[24.10.0]",
+    "UiPath.WebAPI.Activities": "[1.20.0]",
+    "UiPath.Terminal.Activities": "[2.7.0]"
+  }
+}

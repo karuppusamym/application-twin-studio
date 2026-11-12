@@ -1,0 +1,24 @@
+id: uipath-loan-qc-review
+name: Loan QC Review (UiPath original)
+tool: uipath
+version: 1.0.0
+role: original
+owner: unassigned (demo)
+process: loan-qc-review
+objective: Review one QA/QC case through the web workbench, post the result memo on the core banking host, add a case note.
+entry: Main.xaml
+runner: xaml-replay        # switch to uipath-robot on a worker with a licensed robot
+arguments:
+  in_QaqcUrl: "{{qaqc.web}}"
+  in_QaqcApi: "{{qaqc.http}}"
+  in_ApiToken: "{{qaqc.auth.bearer}}"
+  in_User: "{{qaqc.credentials.username}}"
+  in_Password: "{{qaqc.credentials.password}}"
+  in_HostConnection: "{{corebank.tn3270.host}}:{{corebank.tn3270.port}}"
+  in_HostUser: "{{corebank.credentials.userid}}"
+  in_HostPassword: "{{corebank.credentials.password}}"
+  in_CaseId: "{{inputs.case_id}}"
+outputs:
+  status: out_Status
+  final_state: out_FinalState
+  memo_code: out_MemoCode

@@ -1,0 +1,28 @@
+# KYC identity dependency simulator.
+schema_version: "1.0"
+application_id: kyc
+name: KYC Identity Service
+spec_version: "0.1.0"
+interfaces:
+  - {id: identity-api, protocol: http}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: false, status: modeled}
+entities:
+  identity:
+    key: customer_id
+    fields:
+      customer_id: string
+      full_name: string
+      status: {type: string, enum: [VERIFIED, MISMATCH, PENDING]}
+      checked_at: string
+errors:
+  IDENTITY_NOT_FOUND: {status: 404, message: No identity record for customer}
+operations:
+  - id: get-identity
+    interface: identity-api
+    route: GET /identities/{customer_id}
+    verification: demonstration
+    steps:
+      - load: {entity: identity, key: $path.customer_id, not_found: IDENTITY_NOT_FOUND}
+      - respond: {status: 200, body: $identity}

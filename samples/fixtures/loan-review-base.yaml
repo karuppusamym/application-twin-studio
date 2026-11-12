@@ -1,0 +1,53 @@
+# Linked synthetic fixture. Every identifier is invented; no real customer data.
+id: loan-review-base
+version: 1
+clock: "2026-11-11T09:00:00Z"
+credentials:            # synthetic test-only values, valid only inside a twin environment
+  qaqc: {username: qa.bot, password: "Twin#2026"}
+  corebank: {userid: QCBOT01, password: TWIN2026}
+references:
+  - {from: qaqc.case.loan_id, to: mortgage.loan.loan_id}
+  - {from: qaqc.case.customer_id, to: kyc.identity.customer_id}
+  - {from: qaqc.case.document_id, to: documents.document.document_id}
+  - {from: qaqc.case.account_id, to: corebank.account.account_id}
+  - {from: mortgage.loan.account_id, to: corebank.account.account_id}
+data:
+  qaqc:
+    user:
+      - {username: qa.bot, password: "Twin#2026", display_name: QA Robot}
+    case:
+      - {case_id: QC-1001, customer_id: C100, loan_id: L200, document_id: D300, account_id: "4000001001", state: NEW}
+      - {case_id: QC-1002, customer_id: C101, loan_id: L201, document_id: D301, account_id: "4000001002", state: NEW}
+      - {case_id: QC-1003, customer_id: C102, loan_id: L202, document_id: D302, account_id: "4000001003", state: NEW}
+      - {case_id: QC-1004, customer_id: C103, loan_id: L203, document_id: D303, account_id: "4000001004", state: NEW}
+      - {case_id: QC-1005, customer_id: C104, loan_id: L204, document_id: D304, account_id: "4000001005", state: COMPLETED, reason: ALL_CHECKS_PASSED}
+  mortgage:
+    loan:
+      - {loan_id: L200, customer_id: C100, account_id: "4000001001", principal: "250000.00", currency: USD, status: ACTIVE}
+      - {loan_id: L201, customer_id: C101, account_id: "4000001002", principal: "180500.50", currency: USD, status: ACTIVE}
+      - {loan_id: L202, customer_id: C102, account_id: "4000001003", principal: "99000.00", currency: USD, status: ACTIVE}
+      - {loan_id: L203, customer_id: C999, account_id: "4000001004", principal: "410000.00", currency: USD, status: ACTIVE}
+      - {loan_id: L204, customer_id: C104, account_id: "4000001005", principal: "75000.00", currency: USD, status: ACTIVE}
+  kyc:
+    identity:
+      - {customer_id: C100, full_name: Avery Sample, status: VERIFIED, checked_at: "2026-10-01"}
+      - {customer_id: C101, full_name: Blake Example, status: VERIFIED, checked_at: "2026-10-02"}
+      - {customer_id: C102, full_name: Casey Placeholder, status: MISMATCH, checked_at: "2026-10-03"}
+      - {customer_id: C103, full_name: Devon Synthetic, status: VERIFIED, checked_at: "2026-10-04"}
+      - {customer_id: C104, full_name: Emery Fixture, status: VERIFIED, checked_at: "2026-10-05"}
+  documents:
+    document:
+      - {document_id: D300, customer_id: C100, doc_type: INCOME_PROOF, status: RECEIVED}
+      - {document_id: D301, customer_id: C101, doc_type: INCOME_PROOF, status: REQUESTED}
+      - {document_id: D302, customer_id: C102, doc_type: INCOME_PROOF, status: RECEIVED}
+      - {document_id: D303, customer_id: C103, doc_type: INCOME_PROOF, status: RECEIVED}
+      - {document_id: D304, customer_id: C104, doc_type: INCOME_PROOF, status: RECEIVED}
+  corebank:
+    operator:
+      - {userid: QCBOT01, password: TWIN2026, name: QC ROBOT}
+    account:
+      - {account_id: "4000001001", customer_id: C100, status: ACTIVE, balance: "248110.42", currency: USD}
+      - {account_id: "4000001002", customer_id: C101, status: ACTIVE, balance: "179020.10", currency: USD}
+      - {account_id: "4000001003", customer_id: C102, status: ACTIVE, balance: "98100.00", currency: USD}
+      - {account_id: "4000001004", customer_id: C103, status: ACTIVE, balance: "409500.75", currency: USD}
+      - {account_id: "4000001005", customer_id: C104, status: ACTIVE, balance: "74000.00", currency: USD}

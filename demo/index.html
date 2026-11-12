@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twin Studio Demo</title>
+<style>
+:root{--bg:#f4f6f9;--panel:#fff;--ink:#17212b;--mute:#5d6b7a;--line:#dbe1e8;--brand:#12355b;--accent:#1d5fa8;--btn:#fff;
+--ok:#17753a;--okbg:#e6f4ea;--bad:#a3261b;--badbg:#fdecea;--warn:#8a5a00;--warnbg:#fff4d6;--infobg:#e7f0fb;--term:#0b1a12;--termink:#4dfa8b}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10161d;--panel:#18212b;--ink:#e6ecf2;--mute:#9aa8b6;--line:#2b3744;--brand:#0c2540;--accent:#5fa4ee;--btn:#0b1420;
+--ok:#6fd694;--okbg:#143522;--bad:#ff9a8f;--badbg:#44201c;--warn:#f2c765;--warnbg:#40330f;--infobg:#17304d}}
+:root[data-theme=dark]{--bg:#10161d;--panel:#18212b;--ink:#e6ecf2;--mute:#9aa8b6;--line:#2b3744;--brand:#0c2540;--accent:#5fa4ee;--btn:#0b1420;
+--ok:#6fd694;--okbg:#143522;--bad:#ff9a8f;--badbg:#44201c;--warn:#f2c765;--warnbg:#40330f;--infobg:#17304d}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:14px 16px}header h1{margin:0;font-size:18px}header p{margin:4px 0 0;opacity:.85;font-size:13px}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}.tabs button{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.tabs button.on{background:var(--accent);color:var(--btn);border-color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 8px}h3{font-size:13px;margin:12px 0 4px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media (max-width:860px){.cols{grid-template-columns:1fr}}
+button,select,input{font:inherit}button{background:var(--accent);color:var(--btn);border:0;border-radius:5px;padding:7px 13px;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}button:disabled{opacity:.5}
+select,input[type=text],input[type=password]{padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);max-width:100%}
+label{font-size:12px;color:var(--mute);display:block;margin:6px 0 2px}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.ok{background:var(--okbg);color:var(--ok)}.bad{background:var(--badbg);color:var(--bad)}.warn{background:var(--warnbg);color:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-size:12px}
+.wrap{overflow-x:auto}
+.term{background:var(--term);color:var(--termink);font:13px/1.3 Consolas,"Cascadia Mono",monospace;padding:10px;border-radius:6px;white-space:pre;overflow-x:auto;min-height:150px}
+.log{font:12px/1.5 Consolas,monospace;max-height:210px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+.log div{white-space:pre-wrap}.tag{display:inline-block;min-width:44px;font-weight:700}
+.note{border-left:3px solid var(--accent);background:var(--infobg);padding:6px 12px;border-radius:0 6px 6px 0;font-size:13px;margin:8px 0}
+.mute{color:var(--mute)}.changed{animation:flash 1.2s}@keyframes flash{from{background:var(--warnbg)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.changed{animation:none}}
+</style>
+</head>
+<body>
+<header><h1>Application Twin Studio — playable demo</h1>
+<p>A browser-only simulation of the idea. The real studio (Python) runs the same scenarios against real HTTP, web and TN3270 twins.</p></header>
+<main>
+<div class="tabs"><button id="t-race" class="on">1 · Original vs replacement</button><button id="t-play">2 · Play with the twin yourself</button><button id="t-how">3 · How it works</button></div>
+
+<section id="race">
+  <div class="card"><h2>Does the converted automation behave like the original?</h2>
+    <p class="mute">The UiPath bot drives the <b>web UI</b> and the <b>3270 mainframe screen</b>. Its agentic replacement uses the <b>API</b> and the same mainframe. Each gets its own copy of the twin, seeded identically. Independent expected results decide — not whether the two bots agree with each other.</p>
+    <div class="row">
+      <div><label for="sc">Scenario</label><select id="sc"></select></div>
+      <div><label for="neg">Negative test</label><select id="neg"><option value="">none</option><option value="twin">Wrong twin rule (KYC mismatch treated as pass)</option><option value="agent">Defective replacement (forgets host memo)</option></select></div>
+      <button id="go">Run both</button></div>
+    <p id="sc-desc" class="mute"></p><div id="verdict"></div></div>
+  <div class="cols"><div class="card" id="envA"></div><div class="card" id="envB"></div></div>
+</section>
+
+<section id="play" hidden>
+  <div class="card"><h2>One state behind every interface</h2><p class="mute">Use the web workbench, the API and the mainframe screen below. They are three views of the same twin state — change it through one and watch the others follow.</p>
+  <button id="reset" class="ghost">Reset twin to fixture</button></div>
+  <div class="cols">
+    <div class="card"><h2>QA/QC Workbench (web UI twin)</h2><div class="wrap" id="p-cases"></div>
+      <h3>API twin</h3><div class="row"><select id="p-api"></select><button id="p-call" class="ghost">Send</button></div><div class="log" id="p-resp" style="margin-top:8px"></div></div>
+    <div class="card"><h2>Core banking host (3270 twin)</h2><div class="term" id="p-term"></div><div class="row" id="p-keys" style="margin-top:8px"></div>
+      <p class="mute">Sign on with <code>QCBOT01</code> / <code>TWIN2026</code> (synthetic test values).</p>
+      <h3>Host state</h3><div class="wrap" id="p-host"></div></div>
+  </div>
+</section>
+
+<section id="how" hidden><div class="card"><h2>How the real studio works</h2>
+<ol>
+<li><b>Onboard</b> — a UiPath project is parsed statically (nothing is executed). Every activity is mapped to a twin operation, or kept as an explicit gap. Unsupported steps (IE, desktop apps, custom code) block readiness instead of being skipped.</li>
+<li><b>Twin</b> — each application is described in a reviewed YAML spec: entities, state transitions, operations built from allowlisted steps, web pages with stable selectors, and 3270 screens. One state model sits behind the API, the UI, the terminal and SQL.</li>
+<li><b>Environment</b> — every run gets its own isolated copy: separate databases, token, fault schedule, clock and TN3270 port.</li>
+<li><b>Run</b> — the original automation runs in environment A, the replacement in B, from the same fixture and fault schedule.</li>
+<li><b>Judge</b> — hand-written expected outcomes are checked against final state, events and outputs; then A and B are diffed. A deliberately wrong twin rule or a defective replacement must fail.</li>
+<li><b>Certificate</b> — the result states its confidence. Demonstration rules and simulated replay can only ever be <i>exploratory</i>.</li>
+</ol>
+<div class="note">What this demo does not show: the real HTTP gateway, real TN3270 protocol bytes, XAML import, and the gap register. Start the studio with <code>python -m ats serve</code> for those.</div></div></section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const badge = (t, k) => `<span class="b ${k}">${esc(t)}</span>`;
+
+// ---------- twin (JS port of the demonstration rules) ----------
+function fixture() {
+  const mk = (n, state = "NEW") => ({case_id: "QC-100" + n, customer_id: "C10" + (n - 1), loan_id: "L20" + (n - 1), document_id: "D30" + (n - 1), account_id: "400000100" + n, state, reason: ""});
+  return {
+    cases: [mk(1), mk(2), mk(3), mk(4), mk(5, "COMPLETED")],
+    loans: {L200: "C100", L201: "C101", L202: "C102", L203: "C999", L204: "C104"},
+    kyc: {C100: "VERIFIED", C101: "VERIFIED", C102: "MISMATCH", C103: "VERIFIED", C104: "VERIFIED"},
+    docs: {D300: "RECEIVED", D301: "REQUESTED", D302: "RECEIVED", D303: "RECEIVED", D304: "RECEIVED"},
+    accounts: Object.fromEntries([1, 2, 3, 4, 5].map(n => ["400000100" + n, {status: "ACTIVE", balance: ["248110.42", "179020.10", "98100.00", "409500.75", "74000.00"][n - 1]}])),
+    memos: [], notes: [], events: [], receipts: {}, calls: {}, faults: [], wrongRule: false,
+  };
+}
+function fault(env, op) { env.calls[op] = (env.calls[op] || 0) + 1; return env.faults.find(f => f.op === op && (f.occ === "all" || f.occ === env.calls[op])); }
+const twin = {
+  getCase: (env, id) => env.cases.find(c => c.case_id === id) || null,
+  kyc(env, cust) { const f = fault(env, "kyc"); if (f) return {error: 503}; return {status: env.kyc[cust]}; },
+  evaluate(env, id) {
+    const c = twin.getCase(env, id); if (!c) return {status: 404, code: "CASE_NOT_FOUND"};
+    if (!["NEW", "PENDING_EVIDENCE"].includes(c.state)) return {status: 409, code: "STATE_CONFLICT"};
+    let k = twin.kyc(env, c.customer_id); if (k.error) k = twin.kyc(env, c.customer_id);   // gap G17: retry once
+    if (k.error) return {status: 503, code: "DEPENDENCY_UNAVAILABLE"};                     // state untouched
+    let out;
+    if (env.loans[c.loan_id] !== c.customer_id) out = ["EXCEPTION", "CUSTOMER_MISMATCH"];
+    else if (k.status !== "VERIFIED" && !env.wrongRule) out = ["EXCEPTION", "KYC_NOT_VERIFIED"];
+    else if (env.docs[c.document_id] !== "RECEIVED") out = ["PENDING_EVIDENCE", "DOCUMENT_MISSING"];
+    else out = ["COMPLETED", "ALL_CHECKS_PASSED"];
+    [c.state, c.reason] = out; env.events.push("case.evaluated " + id + " " + c.state);
+    return {status: 200, case: c};
+  },
+  addNote(env, id, text, key) {
+    const f = fault(env, "add-note");
+    if (!env.receipts[key]) { env.notes.push({note_id: "N-000" + (env.notes.length + 1), case_id: id, text}); env.receipts[key] = true; }
+    return f ? {status: 504} : {status: 201};       // timeout AFTER commit: the note is saved, the answer is lost
+  },
+  postMemo(env, acct, code) {
+    const a = env.accounts[acct]; if (!a) return {ok: false, msg: "ACCOUNT NOT FOUND"};
+    if (a.status === "CLOSED") return {ok: false, msg: "ACCOUNT CLOSED - MEMO REJECTED"};
+    if (!["QCPASS", "QCHOLD", "QCPEND"].includes(code)) return {ok: false, msg: "Request failed validation"};
+    const id = "M00000" + (env.memos.length + 1); env.memos.push({memo_id: id, account_id: acct, code});
+    if (code === "QCHOLD" && a.status === "ACTIVE") a.status = "HOLD";
+    return {ok: true, msg: `MEMO ${id} POSTED`};
+  },
+};
+
+// ---------- scenarios with hand-written expected outcomes (the oracle) ----------
+const SCENARIOS = [
+  {id: "matched", title: "All checks pass", case: "QC-1001", desc: "Loan, identity and document agree. Case completes; QCPASS memo on the host.", expect: {state: "COMPLETED", memo: "QCPASS", status: "DONE", notes: 1, account: "ACTIVE"}},
+  {id: "missing-doc", title: "Document still requested", case: "QC-1002", desc: "Income proof not received. Case waits for evidence; no host memo.", expect: {state: "PENDING_EVIDENCE", memo: null, status: "DONE", notes: 1, account: "ACTIVE"}},
+  {id: "kyc-mismatch", title: "KYC identity mismatch", case: "QC-1003", desc: "KYC reports a mismatch. Exception; account put on hold.", expect: {state: "EXCEPTION", memo: "QCHOLD", status: "DONE", notes: 1, account: "HOLD"}},
+  {id: "kyc-timeout", title: "KYC times out once, then answers", case: "QC-1001", desc: "First KYC call fails; the twin retries once and the case still completes.", faults: [{op: "kyc", occ: 1}], expect: {state: "COMPLETED", memo: "QCPASS", status: "DONE", notes: 1, account: "ACTIVE"}},
+  {id: "kyc-outage", title: "KYC is down", case: "QC-1001", desc: "KYC never answers. Case must stay NEW; no memo, no note.", faults: [{op: "kyc", occ: "all"}], expect: {state: "NEW", memo: null, status: "FAILED", notes: 0, account: "ACTIVE"}},
+  {id: "note-timeout", title: "Note saved but answer lost", case: "QC-1001", desc: "add-note commits, then times out. A retry with the same idempotency key must not duplicate it.", faults: [{op: "add-note", occ: 1}], expect: {state: "COMPLETED", memo: "QCPASS", status: "DONE", notes: 1, account: "ACTIVE"}},
+  {id: "closed", title: "Host rejects memo (account closed)", case: "QC-1001", desc: "Servicing account is closed on the host; the memo is rejected.", patch: env => env.accounts["4000001001"].status = "CLOSED", expect: {state: "COMPLETED", memo: null, status: "HOST_REJECTED", notes: 1, account: "CLOSED"}},
+  {id: "done", title: "Case already completed", case: "QC-1005", desc: "Re-processing a completed case must be a no-op.", expect: {state: "COMPLETED", memo: null, status: "SKIPPED", notes: 0, account: "ACTIVE"}},
+];
+
+// ---------- the two bots: same goal, different interfaces ----------
+function* bot(kind, env, caseId, defect) {
+  const ui = kind === "original";
+  const step = (tag, text, screen) => ({tag, text, screen});
+  if (ui) { yield step("WEB", "Open QA/QC Workbench, type user id + password, click #btn-login"); yield step("WEB", `Navigate to /ui/cases/${caseId}`); }
+  else yield step("API", `GET /cases/${caseId}  (Bearer test token)`);
+  const c = twin.getCase(env, caseId);
+  if (!c) { yield step(ui ? "WEB" : "API", ui ? "#field-state not on page" : "404 CASE_NOT_FOUND"); return {status: "NOT_FOUND"}; }
+  yield step(ui ? "WEB" : "API", ui ? `Read #field-state = ${c.state}` : `200 state=${c.state}`);
+  if (!["NEW", "PENDING_EVIDENCE"].includes(c.state)) return {status: "SKIPPED", final_state: c.state};
+  const r = twin.evaluate(env, caseId);
+  yield step(ui ? "WEB" : "API", ui ? `Click #btn-evaluate → ${r.status === 200 ? "state " + r.case.state : "#error-message " + r.code}` : `POST /cases/${caseId}/evaluate → ${r.status} ${r.status === 200 ? r.case.state : r.code}`);
+  if (r.status !== 200) return {status: "FAILED"};
+  const memo = {COMPLETED: "QCPASS", EXCEPTION: "QCHOLD"}[c.state] || "";
+  let host = "NONE";
+  if (memo && defect) yield step("BUG", "(injected defect) agent skips the host memo");
+  else if (memo) {
+    yield step("3270", "Connect TN3270, sign on QCBOT01", ["COREBANK ONLINE SYSTEM", "MAIN MENU (CBMN01)", "", "1  ACCOUNT INQUIRY", "2  POST QC MEMO", "X  SIGN OFF"]);
+    const m = twin.postMemo(env, c.account_id, memo);
+    yield step("3270", `Option 2, account ${c.account_id}, code ${memo}, ENTER`, ["COREBANK ONLINE SYSTEM", "POST QC MEMO (CBMM01)", "", `ACCOUNT NUMBER ===> ${c.account_id}`, `MEMO CODE      ===> ${memo}`, "MEMO TEXT      ===> QC REVIEW", "", m.msg]);
+    host = m.ok ? memo : "REJECTED";
+    yield step("3270", `Read row 23: "${m.msg}"; PF3; sign off`);
+  }
+  if (memo && defect) host = memo;
+  const text = `QC result ${c.state}; host memo ${host}`;
+  for (let n = 1; n <= 3; n++) {
+    const a = twin.addNote(env, caseId, text, "note-" + caseId);
+    yield step("API", `POST /cases/${caseId}/notes  Idempotency-Key: note-${caseId} → ${a.status}${a.status === 504 ? " (timeout, retrying)" : ""}`);
+    if (a.status === 201) break;
+  }
+  return {status: host === "REJECTED" ? "HOST_REJECTED" : "DONE", final_state: c.state, memo_code: host === memo ? memo : ""};
+}
+
+function check(env, sc, out) {
+  const c = twin.getCase(env, sc.case), acct = c ? c.account_id : null, e = sc.expect;
+  const memos = env.memos.filter(m => m.account_id === acct);
+  return [
+    ["case state", e.state, c ? c.state : null],
+    ["runner status", e.status, out.status],
+    ["host memo count", e.memo ? 1 : 0, memos.length],
+    ["host memo code", e.memo || "—", memos[0] ? memos[0].code : "—"],
+    ["account status", e.account, acct ? env.accounts[acct].status : null],
+    ["case notes", e.notes, env.notes.filter(n => n.case_id === sc.case).length],
+  ].map(([name, expected, actual]) => ({name, expected, actual, pass: String(expected) === String(actual)}));
+}
+const view = (env, out) => JSON.stringify({cases: env.cases, accounts: env.accounts, memos: env.memos, notes: env.notes, events: env.events, out});
+
+function panel(el, title, sub) {
+  el.innerHTML = `<h2>${title} <span id="${el.id}-st"></span></h2><p class="mute">${sub}</p><h3>Automation steps</h3><div class="log" id="${el.id}-log"></div>
+  <h3>Mainframe screen</h3><div class="term" id="${el.id}-term">(not connected)</div><h3>Twin state after run</h3><div class="wrap" id="${el.id}-state"></div><h3>Independent assertions</h3><div class="wrap" id="${el.id}-as"></div>`;
+}
+async function runSide(el, kind, sc, neg) {
+  const env = fixture(); env.faults = (sc.faults || []).map(f => ({...f})); if (sc.patch) sc.patch(env); env.wrongRule = neg === "twin";
+  const gen = bot(kind, env, sc.case, kind === "replacement" && neg === "agent"); let out, r;
+  const log = $(`#${el.id}-log`);
+  while (!(r = gen.next()).done) {
+    const s = r.value; log.insertAdjacentHTML("beforeend", `<div><span class="tag">${s.tag}</span> ${esc(s.text)}</div>`); log.scrollTop = 1e6;
+    if (s.screen) $(`#${el.id}-term`).textContent = s.screen.join("\n");
+    await new Promise(res => setTimeout(res, matchMedia("(prefers-reduced-motion:reduce)").matches ? 0 : 380));
+  }
+  out = r.value;
+  const c = twin.getCase(env, sc.case);
+  $(`#${el.id}-state`).innerHTML = `<table><tr><th>What</th><th>Value</th></tr><tr><td>Case ${esc(sc.case)}</td><td>${c ? esc(c.state + " · " + (c.reason || "—")) : "not found"}</td></tr>
+    <tr><td>Host memos</td><td>${env.memos.map(m => esc(m.memo_id + " " + m.code)).join(", ") || "none"}</td></tr><tr><td>Account</td><td>${c ? esc(env.accounts[c.account_id].status) : "—"}</td></tr>
+    <tr><td>Case notes</td><td>${env.notes.map(n => esc(n.text)).join("; ") || "none"}</td></tr><tr><td>Runner output</td><td><code>${esc(JSON.stringify(out))}</code></td></tr></table>`;
+  const res = check(env, sc, out);
+  $(`#${el.id}-as`).innerHTML = `<table><tr><th>Assertion</th><th>Expected</th><th>Actual</th><th></th></tr>${res.map(a => `<tr><td>${a.name}</td><td>${esc(a.expected)}</td><td>${esc(a.actual)}</td><td>${badge(a.pass ? "pass" : "fail", a.pass ? "ok" : "bad")}</td></tr>`).join("")}</table>`;
+  const pass = res.every(a => a.pass);
+  $(`#${el.id}-st`).innerHTML = badge(pass ? "PASSED" : "FAILED", pass ? "ok" : "bad");
+  return {pass, view: view(env, out)};
+}
+async function race() {
+  const sc = SCENARIOS.find(s => s.id === $("#sc").value), neg = $("#neg").value;
+  $("#go").disabled = true; $("#verdict").innerHTML = "";
+  panel($("#envA"), "Original — UiPath bot", "Environment A · web UI + 3270 + API");
+  panel($("#envB"), "Replacement — agent", "Environment B · API + 3270");
+  const [a, b] = await Promise.all([runSide($("#envA"), "original", sc, neg), runSide($("#envB"), "replacement", sc, neg)]);
+  const same = a.view === b.view, ok = a.pass && b.pass && same;
+  let why = ok ? "Both automations satisfied every independent assertion and left identical state." :
+    a.pass && !b.pass ? "The replacement left the twin in a different state than expected — the conversion has a defect." :
+    !a.pass && !b.pass && same ? "The two bots agree with each other, yet both fail the independent assertions: the twin itself is wrong. Agreement alone would have hidden this." :
+    "The runs differ or fail the independent assertions.";
+  $("#verdict").innerHTML = `<p>${badge(ok ? "EQUIVALENT IN SCOPE" : "NOT EQUIVALENT / FAILED", ok ? "ok" : "bad")} ${badge("confidence: exploratory", "warn")} ${esc(why)}</p>
+    <div class="note">Exploratory only: the twin runs demonstration rules, not owner-approved bank rules, and nothing here ran on a licensed UiPath robot.</div>`;
+  $("#go").disabled = false;
+}
+
+// ---------- play tab: one state, three interfaces ----------
+let P, T;
+function resetPlay() { P = fixture(); T = {screen: "LOGON", msg: "", acct: null}; drawPlay(); $("#p-resp").innerHTML = ""; }
+function drawPlay(changed) {
+  $("#p-cases").innerHTML = `<table><tr><th>Case</th><th>Customer</th><th>State</th><th>Reason</th><th></th></tr>${P.cases.map(c => `<tr class="${changed === c.case_id ? "changed" : ""}"><td>${c.case_id}</td><td>${c.customer_id}</td><td id="field-state-${c.case_id}">${c.state}</td><td>${esc(c.reason)}</td><td><button class="ghost" data-ev="${c.case_id}">Evaluate</button></td></tr>`).join("")}</table>`;
+  document.querySelectorAll("[data-ev]").forEach(b => b.onclick = () => { const r = twin.evaluate(P, b.dataset.ev); say(`UI click Evaluate ${b.dataset.ev}`, r); drawPlay(b.dataset.ev); });
+  $("#p-api").innerHTML = P.cases.flatMap(c => [`GET /cases/${c.case_id}`, `POST /cases/${c.case_id}/evaluate`]).concat(Object.keys(P.accounts).map(a => `GET /accounts/${a}`)).map(o => `<option>${o}</option>`).join("");
+  $("#p-host").innerHTML = `<table><tr><th>Account</th><th>Status</th><th>Balance</th><th>Memos</th></tr>${Object.entries(P.accounts).map(([id, a]) => `<tr class="${changed === id ? "changed" : ""}"><td>${id}</td><td>${a.status}</td><td>${a.balance}</td><td>${P.memos.filter(m => m.account_id === id).map(m => m.code).join(", ") || "—"}</td></tr>`).join("")}</table>`;
+  drawTerm();
+}
+function say(what, r) { $("#p-resp").insertAdjacentHTML("afterbegin", `<div><b>${esc(what)}</b> → ${esc(JSON.stringify(r.case ? {status: r.status, state: r.case.state, reason: r.case.reason} : r))}</div>`); }
+const SCREENS = {
+  LOGON: {title: "SIGN ON  (CBSN01)", inputs: [["userid", "USERID"], ["password", "PASSWORD", true]], keys: ["ENTER"]},
+  MENU: {title: "MAIN MENU (CBMN01)", lines: ["1  ACCOUNT INQUIRY", "2  POST QC MEMO", "X  SIGN OFF"], inputs: [["option", "OPTION"]], keys: ["ENTER", "PF3"]},
+  ACCTINQ: {title: "ACCOUNT INQUIRY (CBAI01)", inputs: [["account", "ACCOUNT NUMBER"]], keys: ["ENTER", "PF3"]},
+  MEMO: {title: "POST QC MEMO (CBMM01)", inputs: [["account", "ACCOUNT NUMBER"], ["code", "MEMO CODE (QCPASS/QCHOLD/QCPEND)"]], keys: ["ENTER", "PF3"]},
+};
+function drawTerm() {
+  const s = SCREENS[T.screen]; const a = T.acct ? P.accounts[T.acct] : null;
+  const body = [...(s.lines || []), ...(T.screen === "ACCTINQ" && a ? [`ACCOUNT  : ${T.acct}`, `STATUS   : ${a.status}`, `BALANCE  : ${a.balance}`, "CURRENCY : USD"] : [])];
+  $("#p-term").textContent = ["                COREBANK ONLINE SYSTEM", "                " + s.title, "", ...body.map(l => "    " + l), "", " " + T.msg].join("\n");
+  $("#p-keys").innerHTML = s.inputs.map(([n, l, hide]) => `<div><label for="tf-${n}">${l}</label><input id="tf-${n}" type="${hide ? "password" : "text"}" size="14"></div>`).join("") + s.keys.map(k => `<button class="${k === "ENTER" ? "" : "ghost"}" data-key="${k}">${k}</button>`).join("");
+  document.querySelectorAll("[data-key]").forEach(b => b.onclick = () => key(b.dataset.key));
+}
+function key(k) {
+  const f = n => ($("#tf-" + n) || {value: ""}).value.trim(); T.msg = ""; let changed;
+  if (k === "PF3") { T.screen = T.screen === "MENU" ? "LOGON" : "MENU"; T.acct = null; }
+  else if (T.screen === "LOGON") { if (f("userid").toUpperCase() === "QCBOT01" && f("password") === "TWIN2026") T.screen = "MENU"; else T.msg = "INVALID USERID OR PASSWORD"; }
+  else if (T.screen === "MENU") { const o = f("option").toUpperCase(); if (o === "1") T.screen = "ACCTINQ"; else if (o === "2") T.screen = "MEMO"; else if (o === "X") T.screen = "LOGON"; else T.msg = "INVALID OPTION"; }
+  else if (T.screen === "ACCTINQ") { if (P.accounts[f("account")]) { T.acct = f("account"); T.msg = "INQUIRY COMPLETE"; } else { T.acct = null; T.msg = "ACCOUNT NOT FOUND"; } }
+  else if (T.screen === "MEMO") { const r = twin.postMemo(P, f("account"), f("code").toUpperCase()); T.msg = r.msg; changed = f("account"); }
+  drawPlay(changed);
+}
+
+// ---------- wiring ----------
+$("#sc").innerHTML = SCENARIOS.map(s => `<option value="${s.id}">${s.title}</option>`).join("");
+const desc = () => $("#sc-desc").textContent = SCENARIOS.find(s => s.id === $("#sc").value).desc;
+$("#sc").onchange = desc; desc(); $("#go").onclick = race; $("#reset").onclick = resetPlay;
+$("#p-call").onclick = () => { const [m, p] = $("#p-api").value.split(" "); const id = p.split("/")[2];
+  if (p.startsWith("/accounts")) return say($("#p-api").value, P.accounts[id]);
+  if (m === "GET") return say($("#p-api").value, {status: 200, case: twin.getCase(P, id)});
+  say($("#p-api").value, twin.evaluate(P, id)); drawPlay(id); };
+for (const t of ["race", "play", "how"]) $("#t-" + t).onclick = () => { for (const o of ["race", "play", "how"]) { $("#" + o).hidden = o !== t; $("#t-" + o).classList.toggle("on", o === t); } };
+panel($("#envA"), "Original — UiPath bot", "Environment A · web UI + 3270 + API"); panel($("#envB"), "Replacement — agent", "Environment B · API + 3270");
+resetPlay();
+</script>
+</body>
+</html>

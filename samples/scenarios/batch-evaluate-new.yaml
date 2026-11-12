@@ -1,0 +1,71 @@
+id: batch-evaluate-new
+title: Backend batch evaluates every NEW case
+description: 'Backend-only automation: reads the case table with SQL, evaluates each NEW case through the API.'
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: batch-evaluate
+inputs: {}
+assertions:
+- id: state-QC-1001
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1001
+  expect:
+    state: COMPLETED
+  critical: true
+- id: state-QC-1002
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1002
+  expect:
+    state: PENDING_EVIDENCE
+  critical: true
+- id: state-QC-1003
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1003
+  expect:
+    state: EXCEPTION
+  critical: true
+- id: state-QC-1004
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1004
+  expect:
+    state: EXCEPTION
+  critical: true
+- id: state-QC-1005
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1005
+  expect:
+    state: COMPLETED
+  critical: true
+- id: no-new-left
+  type: count
+  app: qaqc
+  entity: case
+  where:
+    state: NEW
+  equals: 0
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 4
+- id: processed
+  type: output
+  path: processed
+  equals: 4
+  critical: true

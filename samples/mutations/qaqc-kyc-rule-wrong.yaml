@@ -1,0 +1,7 @@
+# Negative test: deliberately break one twin rule. The independent assertions must catch it.
+id: qaqc-kyc-rule-wrong
+title: "Wrong twin rule: KYC mismatch is treated as a pass"
+app: qaqc
+operation: evaluate-case
+rule_id: R3-kyc-not-verified
+set: {outcome: COMPLETED, reason: ALL_CHECKS_PASSED}

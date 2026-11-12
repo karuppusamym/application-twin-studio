@@ -1,0 +1,70 @@
+id: kyc-timeout-recovers
+title: KYC times out once, then answers
+description: First KYC call times out; the twin retries once (demo gap G17) and the case still completes.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-qc-review
+inputs:
+  case_id: QC-1001
+faults:
+- app: kyc
+  operation: get-identity
+  occurrence: 1
+  type: timeout
+assertions:
+- id: case-state
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1001
+  expect:
+    state: COMPLETED
+  critical: true
+- id: runner-status
+  type: output
+  path: status
+  equals: DONE
+  critical: true
+- id: host-memo-count
+  type: count
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001001'
+  equals: 1
+  critical: true
+- id: host-memo-code
+  type: rows
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001001'
+  each:
+    code: QCPASS
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001001'
+  expect:
+    status: ACTIVE
+  critical: true
+- id: note-count
+  type: count
+  app: qaqc
+  entity: note
+  where:
+    case_id: QC-1001
+  equals: 1
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 1

@@ -1,0 +1,206 @@
+# QA/QC case workbench twin.
+# DEMONSTRATION RULES ONLY - synthetic sample semantics, not validated bank policy.
+schema_version: "1.0"
+application_id: qaqc
+name: QA/QC Case Workbench
+spec_version: "0.1.0"
+owner: unassigned (demo)
+
+interfaces:
+  - {id: cases-api, protocol: http, auth: {type: bearer}}
+  - {id: cases-ui, protocol: web}
+  - {id: cases-db, protocol: sql}
+
+dependencies:
+  - {application_id: mortgage, interface_id: loans-api, required: true}
+  - {application_id: kyc, interface_id: identity-api, required: true}
+  - {application_id: documents, interface_id: documents-api, required: true}
+
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: true, status: modeled}
+  workflow: {required: true, status: modeled}
+  interface: {required: true, status: modeled}
+  environment: {required: false, status: unsupported}
+
+entities:
+  user:
+    key: username
+    fields: {username: string, password: string, display_name: string}
+  case:
+    key: case_id
+    state_field: state
+    transitions:
+      NEW: [PENDING_EVIDENCE, EXCEPTION, COMPLETED]
+      PENDING_EVIDENCE: [EXCEPTION, COMPLETED]
+    fields:
+      case_id: string
+      customer_id: string
+      loan_id: string
+      document_id: string
+      account_id: string
+      state: {type: string, enum: [NEW, PENDING_EVIDENCE, EXCEPTION, COMPLETED]}
+      reason: string
+      evaluated_at: string
+  note:
+    key: note_id
+    fields: {note_id: string, case_id: string, text: string, author: string, created_at: string}
+
+errors:
+  CASE_NOT_FOUND: {status: 404, message: Case not found}
+  INVALID_CREDENTIALS: {status: 401, message: Invalid user ID or password}
+
+operations:
+  - id: login
+    interface: cases-ui
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [username, password]
+      properties: {username: {type: string, minLength: 1}, password: {type: string, minLength: 1}}
+    steps:
+      - load: {entity: user, key: $body.username, not_found: INVALID_CREDENTIALS}
+      - require: {that: {eq: [$user.password, $body.password]}, error: INVALID_CREDENTIALS}
+      - respond: {status: 200, body: {username: $user.username, display_name: $user.display_name}}
+
+  - id: list-cases
+    interface: cases-api
+    route: GET /cases
+    verification: demonstration
+    steps:
+      - query: {as: items, entity: case, where: {state: $query.state}}
+      - respond: {status: 200, body: {items: $items, count: {$count: $items}}}
+
+  - id: get-case
+    interface: cases-api
+    route: GET /cases/{case_id}
+    verification: demonstration
+    steps:
+      - load: {entity: case, key: $path.case_id, not_found: CASE_NOT_FOUND}
+      - respond: {status: 200, body: $case}
+
+  - id: evaluate-case
+    interface: cases-api
+    route: POST /cases/{case_id}/evaluate
+    verification: demonstration
+    evidence_refs: [rule-demo-01]
+    steps:
+      - load: {entity: case, key: $path.case_id, not_found: CASE_NOT_FOUND}
+      - require:
+          that: {in: [$case.state, [NEW, PENDING_EVIDENCE]]}
+          error: STATE_CONFLICT
+          message: "Case ${case.case_id} is already ${case.state}"
+      - call: {as: loan, dependency: mortgage, operation: get-loan, path: {loan_id: $case.loan_id}, tolerate: [404]}
+      # Gap G17 (demo): a KYC timeout is retried once; if it still fails the case is left untouched.
+      - call: {as: identity, dependency: kyc, operation: get-identity, path: {customer_id: $case.customer_id}, retry: 1, tolerate: [404]}
+      - call: {as: document, dependency: documents, operation: get-document, path: {document_id: $case.document_id}, tolerate: [404]}
+      - decide:
+          rules:
+            - id: R1-loan-missing
+              when: {exists: $loan._error}
+              set: {outcome: EXCEPTION, reason: LOAN_NOT_FOUND}
+            - id: R2-customer-mismatch
+              when: {ne: [$loan.customer_id, $case.customer_id]}
+              set: {outcome: EXCEPTION, reason: CUSTOMER_MISMATCH}
+            - id: R3-kyc-not-verified
+              when: {any: [{exists: $identity._error}, {ne: [$identity.status, VERIFIED]}]}
+              set: {outcome: EXCEPTION, reason: KYC_NOT_VERIFIED}
+            - id: R4-document-missing
+              when: {any: [{exists: $document._error}, {ne: [$document.status, RECEIVED]}]}
+              set: {outcome: PENDING_EVIDENCE, reason: DOCUMENT_MISSING}
+          default: {outcome: COMPLETED, reason: ALL_CHECKS_PASSED}
+      - update:
+          entity: case
+          key: $case.case_id
+          set: {state: $outcome, reason: $reason, evaluated_at: $now}
+      - emit:
+          event: case.evaluated
+          payload: {case_id: $case.case_id, state: $outcome, reason: $reason, rule: $_rule}
+      - respond: {status: 200, body: $case}
+
+  - id: list-notes
+    interface: cases-api
+    route: GET /cases/{case_id}/notes
+    verification: demonstration
+    steps:
+      - query: {as: items, entity: note, where: {case_id: $path.case_id}}
+      - respond: {status: 200, body: {items: $items}}
+
+  - id: add-note
+    interface: cases-api
+    route: POST /cases/{case_id}/notes
+    verification: demonstration
+    idempotency: {required: false, header: Idempotency-Key}
+    input_schema:
+      type: object
+      required: [text]
+      properties: {text: {type: string, minLength: 1, maxLength: 500}}
+    steps:
+      - load: {entity: case, key: $path.case_id, not_found: CASE_NOT_FOUND}
+      - insert:
+          entity: note
+          id: {prefix: "N-", pad: 4}
+          values: {case_id: $case.case_id, text: $body.text, author: $caller, created_at: $now}
+      - emit: {event: note.added, payload: {case_id: $case.case_id, note_id: $note.note_id}}
+      - respond: {status: 201, body: $note}
+
+ui:
+  title: QA/QC Workbench
+  home: /ui/cases
+  session: {login_page: /ui/login, cookie: QAQCSESSION}
+  nav:
+    - {id: cases, label: Cases, path: /ui/cases}
+  pages:
+    - id: login
+      path: /ui/login
+      type: form
+      public: true
+      login: true
+      title: Sign in
+      operation: login
+      on_success: /ui/cases
+      fields:
+        - {name: username, label: User ID, id: username}
+        - {name: password, label: Password, id: password, type: password}
+      submit: {id: btn-login, label: Sign in}
+    - id: cases
+      path: /ui/cases
+      type: table
+      title: Cases
+      operation: list-cases
+      key: case_id
+      filters:
+        - {name: state, label: State, options: ["", NEW, PENDING_EVIDENCE, EXCEPTION, COMPLETED]}
+      columns:
+        - {field: case_id, label: Case, link: "/ui/cases/{case_id}"}
+        - {field: customer_id, label: Customer}
+        - {field: loan_id, label: Loan}
+        - {field: state, label: State}
+        - {field: reason, label: Reason}
+    - id: case
+      path: /ui/cases/{case_id}
+      type: detail
+      title: Case detail
+      operation: get-case
+      fields:
+        - {field: case_id, label: Case}
+        - {field: customer_id, label: Customer}
+        - {field: loan_id, label: Loan}
+        - {field: document_id, label: Document}
+        - {field: account_id, label: Servicing account}
+        - {field: state, label: State}
+        - {field: reason, label: Reason}
+        - {field: evaluated_at, label: Evaluated at}
+      actions:
+        - {id: btn-evaluate, label: Evaluate, operation: evaluate-case, success_message: Case evaluated}
+        - id: btn-add-note
+          label: Add note
+          operation: add-note
+          success_message: Note added
+          fields: [{name: text, label: Note text, id: note-text}]
+      related:
+        - id: notes
+          title: Notes
+          operation: list-notes
+          key: note_id
+          columns: [{field: note_id, label: Note}, {field: text, label: Text}, {field: author, label: Author}]

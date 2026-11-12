@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Application Twin Studio</title>
+<style>
+:root{--bg:#f4f6f9;--panel:#fff;--ink:#17212b;--mute:#5d6b7a;--line:#dbe1e8;--brand:#12355b;--accent:#1d5fa8;
+--ok:#17753a;--okbg:#e6f4ea;--bad:#a3261b;--badbg:#fdecea;--warn:#8a5a00;--warnbg:#fff4d6;--info:#1d4f8f;--infobg:#e7f0fb;--term:#0b1a12;--termink:#4dfa8b}
+@media (prefers-color-scheme:dark){:root{--bg:#10161d;--panel:#18212b;--ink:#e6ecf2;--mute:#9aa8b6;--line:#2b3744;--brand:#0c2540;--accent:#5fa4ee;
+--ok:#6fd694;--okbg:#143522;--bad:#ff9a8f;--badbg:#44201c;--warn:#f2c765;--warnbg:#40330f;--info:#9cc6f5;--infobg:#17304d}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:12px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:600}header nav{display:flex;gap:4px;flex-wrap:wrap}
+header nav a{color:#cfe0f3;text-decoration:none;padding:6px 11px;border-radius:5px}header nav a.on{background:rgba(255,255,255,.16);color:#fff}
+header .right{margin-left:auto;font-size:12px;opacity:.85}header .right a{color:#fff}
+main{max-width:1240px;margin:20px auto;padding:0 18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 10px}h3{font-size:14px;margin:16px 0 6px}p{margin:6px 0}.mute{color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+.scroll{overflow:auto;max-height:420px}
+.b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{background:var(--okbg);color:var(--ok)}.bad{background:var(--badbg);color:var(--bad)}.warn{background:var(--warnbg);color:var(--warn)}.info{background:var(--infobg);color:var(--info)}
+button,select,input{font:inherit}button{background:var(--accent);color:#fff;border:0;border-radius:5px;padding:7px 13px;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#0b1420}}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}button:disabled{opacity:.5;cursor:default}
+select,input[type=text]{padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);max-width:100%}
+label{display:block;font-size:12px;color:var(--mute);margin:8px 0 3px}
+code,pre{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px}pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;max-height:440px;margin:6px 0}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}.kv{display:grid;grid-template-columns:150px 1fr;gap:3px 12px;font-size:13px}.kv div:nth-child(odd){color:var(--mute)}
+.term{background:var(--term);color:var(--termink);font:14px/1.25 Consolas,"Cascadia Mono",monospace;padding:12px;border-radius:6px;white-space:pre;overflow:auto}
+.note{border-left:3px solid var(--accent);padding:6px 12px;background:var(--infobg);border-radius:0 6px 6px 0;margin:10px 0;font-size:13px}
+.stage{display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:4px;font-size:12px;border:1px solid var(--line)}
+a{color:var(--accent)}.pick{cursor:pointer}.pick:hover{background:var(--bg)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Application Twin Studio</h1>
+  <nav id="nav"></nav>
+  <div class="right"><a href="/demo">Playable demo</a> · <a href="/v1/docs">API</a></div>
+</header>
+<main id="view"></main>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api = async (path, opt = {}) => {
+  const r = await fetch(path, {headers: {"Content-Type": "application/json"}, ...opt, body: opt.body && typeof opt.body !== "string" && !(opt.body instanceof ArrayBuffer) ? JSON.stringify(opt.body) : opt.body});
+  const text = await r.text(); let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!r.ok) throw new Error((data && data.message) || r.statusText);
+  return data;
+};
+const badge = (text, kind) => `<span class="b ${kind}">${esc(text)}</span>`;
+const statusBadge = s => badge(s, {PASSED:"ok",READY:"ok",OK:"ok",COMPLETED:"ok",EQUIVALENT_IN_SCOPE:"ok",DONE:"ok",FAILED:"bad",BLOCKED:"bad",ERROR:"bad",FAULTED:"bad",NOT_EQUIVALENT:"bad",critical:"bad",evidence:"warn",major:"warn",exploratory:"warn",INCONCLUSIVE:"warn"}[s] || "info");
+const TABS = [["overview","Overview"],["onboarding","Onboarding"],["applications","Applications"],["lab","Twin Lab"],["execution","Execution Lab"],["gaps","Gaps"]];
+const view = $("#view");
+let timer = null;
+
+function route() {
+  clearInterval(timer);
+  const tab = (location.hash.slice(1).split("/")[0]) || "overview";
+  $("#nav").innerHTML = TABS.map(([id, t]) => `<a href="#${id}" class="${id === tab ? "on" : ""}">${t}</a>`).join("");
+  (PAGES[tab] || PAGES.overview)(location.hash.slice(1).split("/")[1]).catch(e => view.innerHTML = `<div class="card"><span class="b bad">Error</span> ${esc(e.message)}</div>`);
+}
+window.addEventListener("hashchange", route);
+
+const PAGES = {
+  async overview() {
+    const [apps, autos, scs, gaps] = await Promise.all([api("/v1/applications"), api("/v1/onboardings"), api("/v1/scenarios"), api("/v1/gaps")]);
+    const crit = gaps.items.filter(g => g.severity === "critical").length;
+    view.innerHTML = `
+    <div class="card"><h2>What this does</h2>
+      <p>Onboard an automation, find out which application behaviour it needs, and run it against <b>application twins</b> — test copies with a web UI, APIs, a database and a 3270 mainframe screen sharing one state. The original automation and its replacement each get their own identically seeded environment; independent assertions decide whether they are equivalent.</p>
+      <div class="note">Sample twins use <b>demonstration rules</b> and synthetic data. Results here are exploratory evidence, never proof of equivalence with a real bank application.</div></div>
+    <div class="grid">
+      <div class="card"><h2>${apps.items.length} application twins</h2>${apps.items.map(a => `<p><a href="#applications/${a.application_id}">${esc(a.name)}</a><br><span class="mute">${a.interfaces.map(i => i.protocol).join(" · ")}</span></p>`).join("")}</div>
+      <div class="card"><h2>${autos.items.length} automations</h2>${autos.items.map(o => `<p><a href="#onboarding/${o.id}">${esc(o.automation.name)}</a><br>${statusBadge(o.readiness.state)} <span class="mute">${esc(o.automation.tool)} · ${esc(o.automation.role)}</span></p>`).join("")}</div>
+      <div class="card"><h2>${scs.items.length} scenarios</h2><p class="mute">Success, missing data, mismatch, timeout, retry, duplicate, conflict and host rejection cases.</p><p><a href="#execution">Run original vs replacement →</a></p>
+        <h2 style="margin-top:14px">${gaps.items.length} open gaps</h2><p>${badge(crit + " critical", crit ? "bad" : "ok")} ${badge((gaps.items.length - crit) + " evidence", "warn")}</p><p><a href="#gaps">Review gaps →</a></p></div>
+    </div>
+    ${Object.keys(apps.spec_problems || {}).length ? `<div class="card"><h2>Specs rejected by validation</h2><pre>${esc(JSON.stringify(apps.spec_problems, null, 2))}</pre></div>` : ""}`;
+  },
+
+  async onboarding(id) {
+    const list = (await api("/v1/onboardings")).items;
+    const cur = list.find(o => o.id === id) || list[0];
+    const s = cur.summary || {};
+    view.innerHTML = `<div class="two" style="grid-template-columns:320px 1fr">
+    <div><div class="card"><h2>Automations</h2>${list.map(o => `<p class="pick" onclick="location.hash='onboarding/${o.id}'"><b>${esc(o.automation.name)}</b><br>${statusBadge(o.readiness.state)} <span class="mute">${esc(o.automation.tool)} · ${esc(o.automation.runner)}</span></p>`).join("")}</div>
+      <div class="card"><h2>Import a package</h2><p class="mute">Zip of a UiPath project (XAML + project.json). Parsed statically; nothing is executed.</p>
+        <label>Automation id</label><input type="text" id="imp-id" placeholder="my-automation">
+        <label>Zip file</label><input type="file" id="imp-file" accept=".zip"><p><button id="imp-go">Import and analyse</button></p><p id="imp-msg" class="mute"></p></div></div>
+    <div><div class="card"><h2>${esc(cur.automation.name)} ${statusBadge(cur.readiness.state)} ${statusBadge(cur.readiness.confidence)}</h2>
+      <p>${esc(cur.automation.objective || "")}</p>
+      <div class="kv"><div>Tool / runner</div><div>${esc(cur.tool)} / ${esc(cur.runner)}</div><div>Package hash</div><div><code>${esc(cur.package_hash || "n/a (manifest)")}</code></div>
+      <div>Steps</div><div>${s.supported ?? 0} supported of ${s.nodes ?? 0} · ${s.opaque ?? 0} opaque · ${s.mapped ?? 0} mapped to twin operations</div>
+      <div>Applications</div><div>${(cur.applications || []).map(a => `<a href="#applications/${a}">${esc(a)}</a>`).join(", ") || "—"}</div></div>
+      ${cur.readiness.note ? `<div class="note">${esc(cur.readiness.note)}</div>` : ""}
+      ${cur.readiness.blockers.length ? `<h3>Blockers</h3><ul>${cur.readiness.blockers.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
+      <h3>Bindings</h3><table><tr><th>Argument</th><th>Bound to</th><th></th></tr>${(cur.bindings || []).map(b => `<tr><td><code>${esc(b.argument)}</code></td><td><code>${esc(b.template)}</code></td><td>${badge(b.resolved ? "resolved" : "unresolved", b.resolved ? "ok" : "bad")}</td></tr>`).join("") || "<tr><td colspan=3 class=mute>Uses the bindings file contract (ATS_BINDINGS)</td></tr>"}</table>
+      <h3>Required twin operations</h3><table><tr><th>Application</th><th>Operation</th><th>Interface</th><th>Evidence</th></tr>${(cur.required_operations || []).map(r => `<tr><td>${esc(r.application_id)}</td><td>${esc(r.operation)}</td><td>${esc(r.interface)}</td><td>${statusBadge(r.verification)}</td></tr>`).join("")}</table></div>
+    <div class="card"><h2>Gaps (${cur.gaps.length})</h2><table><tr><th>Id</th><th>Severity</th><th>Finding</th><th>Requested action</th></tr>${cur.gaps.map(g => `<tr><td><code>${g.id}</code></td><td>${statusBadge(g.severity)}</td><td>${esc(g.summary)}${g.node_name ? `<br><span class="mute">${esc(g.node_name)}</span>` : ""}</td><td>${esc(g.requested_action)}</td></tr>`).join("") || "<tr><td colspan=4 class=mute>None</td></tr>"}</table></div>
+    <div class="card"><h2>Workflow nodes</h2><div class="scroll"><table><tr><th>#</th><th>Activity</th><th>Name</th><th>Kind</th><th>Mapped to</th><th></th></tr>${(cur.nodes || []).map(n => `<tr><td>${n.id}</td><td>${esc(n.activity)}</td><td>${esc(n.display_name)}<br><span class="mute">${esc(n.file)}</span></td><td>${esc(n.kind)}</td><td>${n.mapping ? esc(Object.entries(n.mapping).filter(([, v]) => v).map(([k, v]) => k.replace("application_id", "app") + "=" + v).join(" ")) : "—"}</td><td>${n.supported ? badge("ok", "ok") : badge("opaque", "bad")}</td></tr>`).join("")}</table></div></div></div></div>`;
+    $("#imp-go").onclick = async () => {
+      const f = $("#imp-file").files[0], aid = $("#imp-id").value.trim();
+      if (!f || !aid) return $("#imp-msg").textContent = "Choose a zip and an id.";
+      try { await fetch(`/v1/automations/import?id=${encodeURIComponent(aid)}`, {method: "POST", body: await f.arrayBuffer()}).then(async r => { if (!r.ok) throw new Error((await r.json()).message); });
+        location.hash = "onboarding/" + aid; route(); } catch (e) { $("#imp-msg").textContent = e.message; }
+    };
+  },
+
+  async applications(id) {
+    const list = (await api("/v1/applications")).items;
+    const cur = list.find(a => a.application_id === id) || list[0];
+    const detail = await api("/v1/applications/" + cur.application_id);
+    view.innerHTML = `<div class="two" style="grid-template-columns:300px 1fr">
+    <div class="card"><h2>Twins</h2>${list.map(a => `<p class="pick" onclick="location.hash='applications/${a.application_id}'"><b>${esc(a.name)}</b><br><span class="mute">${a.interfaces.map(i => i.protocol).join(" · ")} · v${esc(a.spec_version)}</span></p>`).join("")}</div>
+    <div><div class="card"><h2>${esc(cur.name)}</h2>
+      <div class="kv"><div>Application id</div><div><code>${cur.application_id}</code></div><div>Spec version</div><div>${esc(cur.spec_version)} <code>${esc(cur.digest.slice(0, 23))}…</code></div>
+      <div>Depends on</div><div>${cur.dependencies.join(", ") || "—"}</div><div>Used by</div><div>${cur.used_by.map(a => `<a href="#onboarding/${a}">${esc(a)}</a>`).join(", ") || "—"}</div>
+      <div>Rule evidence</div><div>${cur.verification_levels.map(statusBadge).join(" ")}</div></div>
+      <h3>Interfaces and capability</h3><table><tr><th>Interface</th><th>Protocol</th><th>Executable</th><th>Operations</th></tr>${detail.capabilities.interfaces.map(i => `<tr><td>${esc(i.interface_id)}</td><td>${esc(i.protocol)}</td><td>${i.executable ? badge("yes", "ok") : badge(i.unsupported_reason, "bad")}</td><td>${i.operations.map(esc).join(", ") || "—"}</td></tr>`).join("")}</table>
+      <h3>Fidelity dimensions</h3><table><tr><th>Dimension</th><th>Required</th><th>Status</th></tr>${Object.entries(cur.fidelity).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v.required ? "yes" : "no"}</td><td>${statusBadge(v.status)}</td></tr>`).join("")}</table></div>
+    <div class="card"><h2>ATS-Spec source</h2><p class="mute">Reviewed in Git. Operations are built only from allowlisted steps — no embedded code.</p><pre>${esc(detail.source)}</pre></div></div></div>`;
+  },
+
+  async lab() {
+    const [scs, envs] = await Promise.all([api("/v1/scenarios"), api("/v1/environments")]);
+    view.innerHTML = `<div class="card"><h2>Launch a twin environment</h2><p class="mute">An isolated copy of every twin the scenario needs, seeded from its fixture. Point any tool at it: a browser, Postman, UiPath, Playwright, a 3270 emulator, a SQL client.</p>
+      <div class="row"><div><label>Scenario (fixture + faults)</label><select id="lab-sc">${scs.items.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></div><button id="lab-go">Launch</button></div></div>
+      <div id="envs">${envs.items.length ? "" : `<div class="card mute">No environment is running.</div>`}</div>`;
+    $("#lab-go").onclick = async e => { e.target.disabled = true; await api("/v1/environments", {method: "POST", body: {scenario_id: $("#lab-sc").value}}); route(); };
+    for (const env of envs.items) {
+      const el = document.createElement("div"); el.className = "card"; $("#envs").appendChild(el);
+      const rows = Object.entries(env.bindings).map(([app, b]) => `<tr><td><b>${esc(app)}</b></td><td>
+        ${b.web ? `<a href="${b.web}" target="_blank">Open web UI</a><br>` : ""}${b.http ? `API <code>${esc(b.http)}</code><br>` : ""}
+        ${b.tn3270 ? `TN3270 <code>${esc(b.tn3270.host)}:${b.tn3270.port}</code> <button class="ghost" data-term="${app}">Open terminal</button><br>` : ""}
+        ${b.sql ? `SQLite <code>${esc(b.sql.path)}</code><br>` : ""}</td>
+        <td>${b.auth ? `Bearer <code>${esc(b.auth.bearer)}</code><br>` : ""}${b.credentials ? Object.entries(b.credentials).map(([k, v]) => `${esc(k)} <code>${esc(v)}</code>`).join(" · ") : ""}</td></tr>`).join("");
+      el.innerHTML = `<h2>${esc(env.env_id)} ${statusBadge(env.status)} <span class="mute" style="font-weight:400">scenario ${esc(env.scenario_id)} · clock ${esc(env.clock)}</span></h2>
+        <table><tr><th>Twin</th><th>Connect</th><th>Synthetic test credentials</th></tr>${rows}</table>
+        <p><button class="ghost" data-snap>Show state</button> <button class="ghost" data-kill>Destroy</button></p><div data-out></div>`;
+      $("[data-kill]", el).onclick = async () => { await fetch("/v1/environments/" + env.env_id, {method: "DELETE"}); route(); };
+      $("[data-snap]", el).onclick = async () => { const s = await api(`/v1/environments/${env.env_id}/snapshot`); $("[data-out]", el).innerHTML = `<pre>${esc(JSON.stringify({state: s.state, events: s.events, calls: s.calls.slice(-30)}, null, 2))}</pre>`; };
+      el.querySelectorAll("[data-term]").forEach(btn => btn.onclick = () => terminal($("[data-out]", el), new URL(env.bindings[btn.dataset.term].http).pathname));  // same-origin path
+    }
+  },
+
+  async execution(cmpId) {
+    const [scs, autos] = await Promise.all([api("/v1/scenarios"), api("/v1/automations")]);
+    const opt = (items, f) => items.map(a => `<option value="${a.id}">${esc(f(a))}</option>`).join("");
+    const originals = autos.items.filter(a => a.role === "original"), repl = autos.items.filter(a => a.role === "replacement");
+    view.innerHTML = `<div class="card"><h2>Original vs replacement</h2>
+      <p class="mute">Each side runs in its own environment seeded from the same fixture and fault schedule. Agreement between the two is not enough — both must also satisfy the scenario's independent assertions.</p>
+      <div class="row">
+        <div><label>Scenario</label><select id="x-sc">${opt(scs.items, s => s.title)}</select></div>
+        <div><label>Original automation</label><select id="x-a">${opt(originals, a => a.name)}</select></div>
+        <div><label>Replacement</label><select id="x-b">${opt(repl, a => a.name)}<option value="">(none — single run)</option></select></div>
+        <div><label>Negative test</label><select id="x-neg"><option value="">none</option>${scs.mutations.map(m => `<option value="m:${m.id}">${esc(m.title)}</option>`).join("")}${repl.flatMap(a => Object.entries(a.variants || {}).map(([k, v]) => `<option value="v:${k}">Defective replacement: ${esc(v.description)}</option>`)).join("")}</select></div>
+        <button id="x-go">Run</button><button id="x-suite" class="ghost">Run all scenarios</button></div>
+      <p id="x-desc" class="mute"></p></div><div id="x-out"></div>`;
+    const desc = () => { const s = scs.items.find(s => s.id === $("#x-sc").value); $("#x-desc").textContent = s ? s.description : ""; };
+    // scenarios and replacements follow the process the chosen original automates
+    const sync = () => {
+      const proc = (originals.find(a => a.id === $("#x-a").value) || {}).process;
+      $("#x-sc").innerHTML = opt(scs.items.filter(s => s.process === proc), s => s.title) || `<option value="">(no scenario for process ${esc(proc)})</option>`;
+      $("#x-b").innerHTML = opt(repl.filter(a => a.process === proc), a => a.name) + `<option value="">(none — single run)</option>`;
+      $("#x-suite").disabled = !$("#x-b").value; desc();
+    };
+    const rank = a => (repl.some(r => r.process === a.process) ? 0 : 1) + (scs.items.some(s => s.process === a.process) ? 0 : 2);
+    originals.sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+    $("#x-a").innerHTML = opt(originals, a => a.name);
+    $("#x-a").onchange = sync; $("#x-b").onchange = () => $("#x-suite").disabled = !$("#x-b").value;
+    $("#x-sc").onchange = desc; sync();
+    if ([...$("#x-sc").options].some(o => o.value === "matched-case")) { $("#x-sc").value = "matched-case"; desc(); }
+    const neg = () => { const v = $("#x-neg").value; return {mutation_id: v.startsWith("m:") ? v.slice(2) : null, replacement_variant: v.startsWith("v:") ? v.slice(2) : null}; };
+    const out = $("#x-out");
+    $("#x-go").onclick = async () => {
+      const b = $("#x-b").value;
+      if (!$("#x-sc").value) return out.innerHTML = `<div class="card">${badge("No scenario", "warn")} No scenario exists for this automation's process yet. See its <a href="#onboarding/${esc($("#x-a").value)}">onboarding report</a>.</div>`;
+      if (!b) { const r = await api("/v1/runs", {method: "POST", body: {scenario_id: $("#x-sc").value, automation_id: $("#x-a").value, mutation_id: neg().mutation_id}}); return pollRun(r.id, out); }
+      const c = await api("/v1/comparisons", {method: "POST", body: {scenario_id: $("#x-sc").value, original_id: $("#x-a").value, replacement_id: b, ...neg()}});
+      pollCmp(c.id, out);
+    };
+    $("#x-suite").onclick = async () => {
+      const s = await api("/v1/suites", {method: "POST", body: {original_id: $("#x-a").value, replacement_id: $("#x-b").value, ...neg()}});
+      clearInterval(timer);
+      const tick = async () => { const d = await api("/v1/suites/" + s.id);
+        out.innerHTML = `<div class="card"><h2>Suite ${statusBadge(d.status)} <span class="mute" style="font-weight:400">${d.results.length}/${d.scenario_ids.length} scenarios</span></h2><table><tr><th>Scenario</th><th>Original</th><th>Replacement</th><th>Differences</th><th>Result</th><th></th></tr>${d.results.map(r => `<tr><td>${esc(r.scenario_id)}</td><td>${statusBadge(r.original)}</td><td>${statusBadge(r.replacement)}</td><td>${r.differences}</td><td>${statusBadge(r.result)}</td><td><a href="#execution/${r.comparison_id}">details</a></td></tr>`).join("")}</table></div>`;
+        if (d.status !== "RUNNING") clearInterval(timer); };
+      timer = setInterval(tick, 700); tick();
+    };
+    if (cmpId) pollCmp(cmpId, out);
+  },
+
+  async gaps() {
+    const gaps = (await api("/v1/gaps")).items;
+    view.innerHTML = `<div class="card"><h2>Gap register (${gaps.length})</h2><p class="mute">Critical gaps block readiness. Evidence gaps allow exploratory runs but block migration qualification. A gap is closed by evidence and a passing test, never by a guess.</p>
+    <table><tr><th>Id</th><th>Automation</th><th>Application</th><th>Severity</th><th>Kind</th><th>Finding</th><th>Blocks</th></tr>${gaps.map(g => `<tr><td><code>${g.id}</code></td><td><a href="#onboarding/${g.automation_id}">${esc(g.automation_id)}</a></td><td>${esc(g.application_id || "—")}</td><td>${statusBadge(g.severity)}</td><td>${esc(g.kind)}</td><td>${esc(g.summary)}</td><td>${esc(g.blocks)}</td></tr>`).join("")}</table></div>`;
+  },
+};
+
+function runCard(title, r) {
+  if (!r) return `<div class="card"><h2>${esc(title)}</h2><p class="mute">Waiting…</p></div>`;
+  const run = r.runner || {};
+  return `<div class="card"><h2>${esc(title)} ${statusBadge(r.status)}</h2>
+    <div class="kv"><div>Automation</div><div>${esc(r.automation_id)}${r.variant ? " · variant " + esc(r.variant) : ""}</div><div>Runner</div><div>${esc(run.runner || "—")} <span class="mute">(${esc(run.evidence_class || "")})</span></div><div>Environment</div><div><code>${esc(r.env_id || "—")}</code> ${r.cleanup ? "· cleanup " + r.cleanup.status : ""}</div>
+    <div>Output</div><div><code>${esc(JSON.stringify(Object.fromEntries(Object.entries(run.output || {}).filter(([k]) => k !== "trace"))))}</code></div></div>
+    ${r.error ? `<p>${badge("error", "bad")} ${esc(r.error)}</p>` : ""}
+    <p>${(r.stages || []).map(s => `<span class="stage" title="${esc(s.detail)}">${esc(s.name)} ${statusBadge(s.status)} <span class="mute">${s.ms}ms</span></span>`).join("")}</p>
+    <h3>Independent assertions</h3><table><tr><th>Assertion</th><th>Expected</th><th>Actual</th><th></th></tr>${(r.assertions || []).map(a => `<tr><td>${esc(a.id)}<br><span class="mute">${esc(a.detail)}</span></td><td><code>${esc(JSON.stringify(a.expected))}</code></td><td><code>${esc(JSON.stringify(a.actual))}</code></td><td>${badge(a.passed ? "pass" : "fail", a.passed ? "ok" : "bad")}</td></tr>`).join("")}</table>
+    <details><summary>Automation steps (${(run.log || []).length})</summary><div class="scroll"><table>${(run.log || []).map(l => `<tr><td>${l.n}</td><td>${esc(l.display_name || l.activity)}</td><td>${esc(l.info)}</td></tr>`).join("")}</table></div></details>
+    <details><summary>Twin calls (${(r.calls || []).length})</summary><div class="scroll"><table>${(r.calls || []).map(c => `<tr><td>${c.n}</td><td>${esc(c.app)}.${esc(c.operation)}</td><td>${esc(c.caller)}</td><td>${c.fault ? badge(c.fault, "warn") : ""}</td></tr>`).join("")}</table></div></details></div>`;
+}
+function pollRun(id, out) { clearInterval(timer); const tick = async () => { const r = await api("/v1/runs/" + id); out.innerHTML = runCard("Run", r); if (["PASSED","FAILED","ERROR","BLOCKED"].includes(r.status)) clearInterval(timer); }; timer = setInterval(tick, 500); tick(); }
+function pollCmp(id, out) {
+  clearInterval(timer);
+  const tick = async () => {
+    const c = await api("/v1/comparisons/" + id); const cert = c.certificate;
+    out.innerHTML = (cert ? `<div class="card"><h2>Result ${statusBadge(cert.result)} <span class="mute" style="font-weight:400">scenario ${esc(c.scenario_id)}</span></h2>
+      <div class="kv"><div>Confidence</div><div>${statusBadge(cert.confidence)}</div><div>May qualify a migration</div><div>${cert.may_qualify_migration ? badge("yes", "ok") : badge("no", "warn")}</div>
+      <div>Business differences</div><div>${c.differences.length}</div>${c.mutation_id ? `<div>Injected twin defect</div><div>${esc(c.mutation_id)}</div>` : ""}</div>
+      ${cert.limits.map(l => `<div class="note">${esc(l)}</div>`).join("")}
+      ${c.differences.length ? `<h3>Differences in state, events or output</h3><table><tr><th>Where</th><th>Original</th><th>Replacement</th></tr>${c.differences.map(d => `<tr><td><code>${esc(d.path)}</code></td><td><code>${esc(JSON.stringify(d.original))}</code></td><td><code>${esc(JSON.stringify(d.replacement))}</code></td></tr>`).join("")}</table>` : ""}</div>`
+      : `<div class="card"><h2>Running… ${statusBadge(c.status)}</h2>${c.error ? esc(c.error) : ""}</div>`)
+      + `<div class="two">${runCard("Original — environment A", c.original_run_detail)}${runCard("Replacement — environment B", c.replacement_run_detail)}</div>`;
+    if (c.status !== "RUNNING") clearInterval(timer);
+  };
+  timer = setInterval(tick, 600); tick();
+}
+
+async function terminal(host, base) {
+  let t = await api(base + "/_term", {method: "POST"});
+  const draw = () => {
+    const inputs = t.fields.filter(f => !f.protected);
+    host.innerHTML = `<h3>3270 session <span class="mute">screen ${esc(t.screen)}${t.closed ? " · disconnected" : ""}</span></h3><div class="term">${esc(t.text.join("\n"))}</div>
+      <div class="row">${inputs.map(f => `<div><label>${esc(f.name)} (r${f.row} c${f.col})</label><input type="${f.hidden ? "password" : "text"}" data-f="${esc(f.name)}" maxlength="${f.len}" size="${Math.min(f.len + 2, 30)}"></div>`).join("")}
+      ${t.keys.map(k => `<button class="${k === "ENTER" ? "" : "ghost"}" data-k="${k}">${k}</button>`).join("")}</div>
+      <p class="mute">Web view of the same screen state machine the TN3270 port serves. It is a convenience, not a substitute for testing with a real 3270 client.</p>`;
+    host.querySelectorAll("[data-k]").forEach(b => b.onclick = async () => {
+      const fields = Object.fromEntries([...host.querySelectorAll("[data-f]")].map(i => [i.dataset.f, i.value]));
+      t = await api(`${base}/_term/${t.session}`, {method: "POST", body: {aid: b.dataset.k, fields}}); draw();
+    });
+    const first = host.querySelector("[data-f]"); if (first) first.focus();
+  };
+  draw();
+}
+route();
+</script>
+</body>
+</html>

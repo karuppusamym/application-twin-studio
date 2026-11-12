@@ -1,0 +1,63 @@
+id: host-account-closed
+title: Host rejects memo on closed account
+description: The servicing account is closed on the host, so the memo is rejected. The case result still stands.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-qc-review
+inputs:
+  case_id: QC-1001
+patch:
+- app: corebank
+  entity: account
+  key_field: account_id
+  key: '4000001001'
+  set:
+    status: CLOSED
+assertions:
+- id: case-state
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1001
+  expect:
+    state: COMPLETED
+  critical: true
+- id: runner-status
+  type: output
+  path: status
+  equals: HOST_REJECTED
+  critical: true
+- id: host-memo-count
+  type: count
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001001'
+  equals: 0
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001001'
+  expect:
+    status: CLOSED
+  critical: true
+- id: note-count
+  type: count
+  app: qaqc
+  entity: note
+  where:
+    case_id: QC-1001
+  equals: 1
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 1

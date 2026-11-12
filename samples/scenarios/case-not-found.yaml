@@ -1,0 +1,32 @@
+id: case-not-found
+title: Unknown case
+description: The requested case does not exist.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-qc-review
+inputs:
+  case_id: QC-9999
+assertions:
+- id: runner-status
+  type: output
+  path: status
+  equals: NOT_FOUND
+  critical: true
+- id: note-count
+  type: count
+  app: qaqc
+  entity: note
+  where:
+    case_id: QC-9999
+  equals: 0
+  critical: true
+- id: evaluated-events
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 0

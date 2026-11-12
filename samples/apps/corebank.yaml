@@ -1,0 +1,189 @@
+# Core banking host twin: a 3270 terminal application AND a mainframe REST API
+# over the same account state. DEMONSTRATION screens and rules only.
+schema_version: "1.0"
+application_id: corebank
+name: Core Banking Host (CICS-style)
+spec_version: "0.1.0"
+interfaces:
+  - {id: host-3270, protocol: tn3270}
+  - {id: host-api, protocol: http}
+  - {id: host-db, protocol: sql}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: true, status: modeled}
+  interface: {required: true, status: modeled}
+  environment: {required: false, status: unsupported}
+entities:
+  operator:
+    key: userid
+    fields: {userid: string, password: string, name: string}
+  account:
+    key: account_id
+    state_field: status
+    transitions:
+      ACTIVE: [HOLD, CLOSED]
+      HOLD: [ACTIVE, CLOSED]
+    fields:
+      account_id: string
+      customer_id: string
+      status: {type: string, enum: [ACTIVE, HOLD, CLOSED]}
+      balance: decimal
+      currency: string
+  memo:
+    key: memo_id
+    fields: {memo_id: string, account_id: string, code: string, text: string, operator: string, posted_at: string}
+errors:
+  ACCOUNT_NOT_FOUND: {status: 404, message: ACCOUNT NOT FOUND}
+  ACCOUNT_CLOSED: {status: 409, message: ACCOUNT CLOSED - MEMO REJECTED}
+  INVALID_LOGON: {status: 401, message: INVALID USERID OR PASSWORD}
+operations:
+  - id: logon
+    interface: host-3270
+    verification: demonstration
+    steps:
+      - load: {entity: operator, key: {$upper: $body.userid}, not_found: INVALID_LOGON}
+      - require: {that: {eq: [$operator.password, $body.password]}, error: INVALID_LOGON}
+      - respond: {status: 200, body: {userid: $operator.userid, name: $operator.name}}
+
+  - id: get-account
+    interface: host-api
+    route: GET /accounts/{account_id}
+    verification: demonstration
+    steps:
+      - load: {entity: account, key: $path.account_id, not_found: ACCOUNT_NOT_FOUND}
+      - respond: {status: 200, body: $account}
+
+  - id: list-memos
+    interface: host-api
+    route: GET /accounts/{account_id}/memos
+    verification: demonstration
+    steps:
+      - query: {as: items, entity: memo, where: {account_id: $path.account_id}}
+      - respond: {status: 200, body: {items: $items}}
+
+  - id: post-memo
+    interface: host-api
+    route: POST /accounts/{account_id}/memos
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [code]
+      properties:
+        code: {type: string, enum: [QCPASS, QCHOLD, QCPEND]}
+        text: {type: string, maxLength: 40}
+    steps:
+      - load: {entity: account, key: $path.account_id, not_found: ACCOUNT_NOT_FOUND}
+      - require: {that: {ne: [$account.status, CLOSED]}, error: ACCOUNT_CLOSED}
+      - insert:
+          entity: memo
+          id: {prefix: "M", pad: 6}
+          values:
+            account_id: $account.account_id
+            code: $body.code
+            text: $body.text
+            operator: {$coalesce: [$body.operator, $caller]}
+            posted_at: $now
+      - if:
+          when: {all: [{eq: [$body.code, QCHOLD]}, {eq: [$account.status, ACTIVE]}]}
+          then:
+            - update: {entity: account, key: $account.account_id, set: {status: HOLD}}
+      - emit: {event: memo.posted, payload: {account_id: $account.account_id, code: $body.code, memo_id: $memo.memo_id}}
+      - respond: {status: 201, body: $memo}
+
+terminal:
+  rows: 24
+  cols: 80
+  start: LOGON
+  screens:
+    LOGON:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 30, "SIGN ON  (CBSN01)"]
+        - [10, 20, "USERID   ===>"]
+        - [12, 20, "PASSWORD ===>"]
+        - [24, 2, "ENTER=SIGN ON  PF3=EXIT"]
+      inputs:
+        - {name: userid, row: 10, col: 35, len: 8}
+        - {name: password, row: 12, col: 35, len: 8, hidden: true}
+      outputs:
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          operation: logon
+          body: {userid: $field.userid, password: $field.password}
+          on_success: {set: {operator: $result.userid}, goto: MENU}
+          on_error: {message: $error.message}
+        PF3: {disconnect: true}
+    MENU:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 30, "MAIN MENU (CBMN01)"]
+        - [8, 20, "1  ACCOUNT INQUIRY"]
+        - [9, 20, "2  POST QC MEMO"]
+        - [10, 20, "X  SIGN OFF"]
+        - [20, 2, "OPTION ===>"]
+        - [24, 2, "ENTER=SELECT  PF3=SIGN OFF"]
+      inputs:
+        - {name: option, row: 20, col: 15, len: 1}
+      outputs:
+        - {name: operator, row: 3, col: 60, len: 18, value: "OPER: ${s.operator}"}
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          switch: {$upper: $field.option}
+          cases:
+            "1": {goto: ACCTINQ, clear: [acct]}
+            "2": {goto: MEMO}
+            "X": {goto: LOGON, clear: [operator, acct]}
+          default: {message: INVALID OPTION}
+        PF3: {goto: LOGON, clear: [operator, acct]}
+    ACCTINQ:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 28, "ACCOUNT INQUIRY (CBAI01)"]
+        - [5, 4, "ACCOUNT NUMBER ===>"]
+        - [8, 4, "ACCOUNT  :"]
+        - [9, 4, "CUSTOMER :"]
+        - [10, 4, "STATUS   :"]
+        - [11, 4, "BALANCE  :"]
+        - [12, 4, "CURRENCY :"]
+        - [24, 2, "ENTER=INQUIRE  PF3=MENU"]
+      inputs:
+        - {name: account, row: 5, col: 25, len: 10}
+      outputs:
+        - {name: account_id, row: 8, col: 16, len: 10, value: $s.acct.account_id}
+        - {name: customer_id, row: 9, col: 16, len: 10, value: $s.acct.customer_id}
+        - {name: status, row: 10, col: 16, len: 8, value: $s.acct.status}
+        - {name: balance, row: 11, col: 16, len: 15, value: $s.acct.balance}
+        - {name: currency, row: 12, col: 16, len: 3, value: $s.acct.currency}
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          operation: get-account
+          path: {account_id: $field.account}
+          on_success: {set: {acct: $result}, message: INQUIRY COMPLETE}
+          on_error: {clear: [acct], message: $error.message}
+        PF3: {goto: MENU}
+    MEMO:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 29, "POST QC MEMO (CBMM01)"]
+        - [5, 4, "ACCOUNT NUMBER ===>"]
+        - [7, 4, "MEMO CODE      ===>"]
+        - [7, 34, "(QCPASS / QCHOLD / QCPEND)"]
+        - [9, 4, "MEMO TEXT      ===>"]
+        - [24, 2, "ENTER=POST  PF3=MENU"]
+      inputs:
+        - {name: account, row: 5, col: 25, len: 10}
+        - {name: code, row: 7, col: 25, len: 6}
+        - {name: text, row: 9, col: 25, len: 40}
+      outputs:
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          operation: post-memo
+          path: {account_id: $field.account}
+          body: {code: {$upper: $field.code}, text: $field.text, operator: $s.operator}
+          on_success: {message: "MEMO ${result.memo_id} POSTED"}
+          on_error: {message: $error.message}
+        PF3: {goto: MENU}

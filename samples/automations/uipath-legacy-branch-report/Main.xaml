@@ -1,0 +1,30 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="Main"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Sample that deliberately uses activities outside the supported subset.
+       Onboarding must report it as BLOCKED with explicit gaps, never as ready. -->
+  <x:Members>
+    <x:Property Name="in_PortalUrl" Type="InArgument(x:String)" />
+    <x:Property Name="in_ReportPath" Type="InArgument(x:String)" />
+  </x:Members>
+  <Sequence DisplayName="Branch exception report">
+    <ui:OpenBrowser BrowserType="IE" DisplayName="Open legacy branch portal (IE)" Url="[in_PortalUrl]">
+      <ui:OpenBrowser.Body>
+        <ActivityAction x:TypeArguments="x:Object">
+          <Sequence DisplayName="In legacy portal">
+            <ui:Click DisplayName="Click ActiveX grid export">
+              <ui:Click.Target><ui:Target Selector="&lt;webctrl id='gridExport' tag='OBJECT' /&gt;" /></ui:Click.Target>
+            </ui:Click>
+          </Sequence>
+        </ActivityAction>
+      </ui:OpenBrowser.Body>
+    </ui:OpenBrowser>
+    <ui:OpenApplication DisplayName="Open TellerDesk.exe" FileName="C:\Apps\TellerDesk\TellerDesk.exe" />
+    <ui:ExcelApplicationScope DisplayName="Write exceptions workbook" WorkbookPath="[in_ReportPath]" />
+    <ui:InvokeCode DisplayName="Reformat rows (custom VB)" Code="Dim x = 1" />
+    <ui:ExecuteQuery DisplayName="Read branch table (SQL Server)" Sql="SELECT * FROM dbo.BranchExceptions WITH (NOLOCK)" />
+    <ui:SendSmtpMailMessage DisplayName="Mail report" To="ops@example.invalid" />
+  </Sequence>
+</Activity>

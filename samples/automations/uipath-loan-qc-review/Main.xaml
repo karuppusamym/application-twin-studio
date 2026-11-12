@@ -1,0 +1,206 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="Main"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Hand-authored sample that follows the UiPath Studio XAML layout. Synthetic process, synthetic data. -->
+  <x:Members>
+    <x:Property Name="in_QaqcUrl" Type="InArgument(x:String)" />
+    <x:Property Name="in_QaqcApi" Type="InArgument(x:String)" />
+    <x:Property Name="in_ApiToken" Type="InArgument(x:String)" />
+    <x:Property Name="in_User" Type="InArgument(x:String)" />
+    <x:Property Name="in_Password" Type="InArgument(x:String)" />
+    <x:Property Name="in_HostConnection" Type="InArgument(x:String)" />
+    <x:Property Name="in_HostUser" Type="InArgument(x:String)" />
+    <x:Property Name="in_HostPassword" Type="InArgument(x:String)" />
+    <x:Property Name="in_CaseId" Type="InArgument(x:String)" />
+    <x:Property Name="out_Status" Type="OutArgument(x:String)" />
+    <x:Property Name="out_FinalState" Type="OutArgument(x:String)" />
+    <x:Property Name="out_MemoCode" Type="OutArgument(x:String)" />
+  </x:Members>
+  <Sequence DisplayName="Loan QC Review">
+    <Sequence.Variables>
+      <Variable x:TypeArguments="x:Boolean" Name="caseFound" />
+      <Variable x:TypeArguments="x:Boolean" Name="evalFailed" />
+      <Variable x:TypeArguments="x:Boolean" Name="memoPosted" />
+      <Variable x:TypeArguments="x:String" Name="state0" />
+      <Variable x:TypeArguments="x:String" Name="accountId" />
+      <Variable x:TypeArguments="x:String" Name="memoCode" Default="" />
+      <Variable x:TypeArguments="x:String" Name="hostResult" Default="NONE" />
+      <Variable x:TypeArguments="x:String" Name="noteResponse" />
+      <Variable x:TypeArguments="x:Int32" Name="noteStatus" />
+    </Sequence.Variables>
+    <ui:OpenBrowser BrowserType="Chrome" DisplayName="Open QA/QC Workbench" Url="[in_QaqcUrl + &quot;/login&quot;]">
+      <ui:OpenBrowser.Body>
+        <ActivityAction x:TypeArguments="x:Object">
+          <Sequence DisplayName="In QA/QC Workbench">
+            <ui:TypeInto DisplayName="Type user id" Text="[in_User]">
+              <ui:TypeInto.Target><ui:Target Selector="&lt;webctrl id='username' tag='INPUT' /&gt;" /></ui:TypeInto.Target>
+            </ui:TypeInto>
+            <ui:TypeInto DisplayName="Type password" Text="[in_Password]">
+              <ui:TypeInto.Target><ui:Target Selector="&lt;webctrl id='password' tag='INPUT' /&gt;" /></ui:TypeInto.Target>
+            </ui:TypeInto>
+            <ui:Click DisplayName="Click Sign in">
+              <ui:Click.Target><ui:Target Selector="&lt;webctrl id='btn-login' tag='BUTTON' /&gt;" /></ui:Click.Target>
+            </ui:Click>
+            <ui:NavigateTo DisplayName="Open case" Url="[in_QaqcUrl + &quot;/cases/&quot; + in_CaseId]" />
+            <ui:UiElementExists DisplayName="Case page loaded?" Exists="[caseFound]">
+              <ui:UiElementExists.Target><ui:Target Selector="&lt;webctrl id='field-state' /&gt;" /></ui:UiElementExists.Target>
+            </ui:UiElementExists>
+            <If DisplayName="Case exists?" Condition="[Not caseFound]">
+              <If.Then>
+                <Assign DisplayName="Status NOT_FOUND">
+                  <Assign.To><OutArgument x:TypeArguments="x:String">[out_Status]</OutArgument></Assign.To>
+                  <Assign.Value><InArgument x:TypeArguments="x:String">["NOT_FOUND"]</InArgument></Assign.Value>
+                </Assign>
+              </If.Then>
+              <If.Else>
+                <Sequence DisplayName="Process case">
+                  <ui:GetText DisplayName="Read state" Value="[state0]">
+                    <ui:GetText.Target><ui:Target Selector="&lt;webctrl id='field-state' /&gt;" /></ui:GetText.Target>
+                  </ui:GetText>
+                  <If DisplayName="Case open for evaluation?" Condition="[state0 = &quot;NEW&quot; Or state0 = &quot;PENDING_EVIDENCE&quot;]">
+                    <If.Then>
+                      <Sequence DisplayName="Evaluate">
+                        <ui:Click DisplayName="Click Evaluate">
+                          <ui:Click.Target><ui:Target Selector="&lt;webctrl id='btn-evaluate' tag='BUTTON' /&gt;" /></ui:Click.Target>
+                        </ui:Click>
+                        <ui:UiElementExists DisplayName="Evaluation error shown?" Exists="[evalFailed]">
+                          <ui:UiElementExists.Target><ui:Target Selector="&lt;webctrl id='error-message' /&gt;" /></ui:UiElementExists.Target>
+                        </ui:UiElementExists>
+                        <If DisplayName="Evaluation failed?" Condition="[evalFailed]">
+                          <If.Then>
+                            <Assign DisplayName="Status FAILED">
+                              <Assign.To><OutArgument x:TypeArguments="x:String">[out_Status]</OutArgument></Assign.To>
+                              <Assign.Value><InArgument x:TypeArguments="x:String">["FAILED"]</InArgument></Assign.Value>
+                            </Assign>
+                          </If.Then>
+                          <If.Else>
+                            <Sequence DisplayName="Record outcome">
+                              <ui:GetText DisplayName="Read final state" Value="[out_FinalState]">
+                                <ui:GetText.Target><ui:Target Selector="&lt;webctrl id='field-state' /&gt;" /></ui:GetText.Target>
+                              </ui:GetText>
+                              <ui:GetText DisplayName="Read servicing account" Value="[accountId]">
+                                <ui:GetText.Target><ui:Target Selector="&lt;webctrl id='field-account_id' /&gt;" /></ui:GetText.Target>
+                              </ui:GetText>
+                              <If DisplayName="Completed?" Condition="[out_FinalState = &quot;COMPLETED&quot;]">
+                                <If.Then>
+                                  <Assign DisplayName="Memo QCPASS">
+                                    <Assign.To><OutArgument x:TypeArguments="x:String">[memoCode]</OutArgument></Assign.To>
+                                    <Assign.Value><InArgument x:TypeArguments="x:String">["QCPASS"]</InArgument></Assign.Value>
+                                  </Assign>
+                                </If.Then>
+                              </If>
+                              <If DisplayName="Exception?" Condition="[out_FinalState = &quot;EXCEPTION&quot;]">
+                                <If.Then>
+                                  <Assign DisplayName="Memo QCHOLD">
+                                    <Assign.To><OutArgument x:TypeArguments="x:String">[memoCode]</OutArgument></Assign.To>
+                                    <Assign.Value><InArgument x:TypeArguments="x:String">["QCHOLD"]</InArgument></Assign.Value>
+                                  </Assign>
+                                </If.Then>
+                              </If>
+                              <If DisplayName="Host memo needed?" Condition="[memoCode &lt;&gt; &quot;&quot;]">
+                                <If.Then>
+                                  <Sequence DisplayName="Post host memo">
+                                    <ui:InvokeWorkflowFile DisplayName="Invoke PostHostMemo" WorkflowFileName="PostHostMemo.xaml">
+                                      <ui:InvokeWorkflowFile.Arguments>
+                                        <InArgument x:TypeArguments="x:String" x:Key="in_HostConnection">[in_HostConnection]</InArgument>
+                                        <InArgument x:TypeArguments="x:String" x:Key="in_HostUser">[in_HostUser]</InArgument>
+                                        <InArgument x:TypeArguments="x:String" x:Key="in_HostPassword">[in_HostPassword]</InArgument>
+                                        <InArgument x:TypeArguments="x:String" x:Key="in_Account">[accountId]</InArgument>
+                                        <InArgument x:TypeArguments="x:String" x:Key="in_MemoCode">[memoCode]</InArgument>
+                                        <OutArgument x:TypeArguments="x:Boolean" x:Key="out_Posted">[memoPosted]</OutArgument>
+                                      </ui:InvokeWorkflowFile.Arguments>
+                                    </ui:InvokeWorkflowFile>
+                                    <If DisplayName="Memo posted?" Condition="[memoPosted]">
+                                      <If.Then>
+                                        <Assign DisplayName="Host result = memo code">
+                                          <Assign.To><OutArgument x:TypeArguments="x:String">[hostResult]</OutArgument></Assign.To>
+                                          <Assign.Value><InArgument x:TypeArguments="x:String">[memoCode]</InArgument></Assign.Value>
+                                        </Assign>
+                                      </If.Then>
+                                      <If.Else>
+                                        <Sequence DisplayName="Host rejected">
+                                          <Assign DisplayName="Host result REJECTED">
+                                            <Assign.To><OutArgument x:TypeArguments="x:String">[hostResult]</OutArgument></Assign.To>
+                                            <Assign.Value><InArgument x:TypeArguments="x:String">["REJECTED"]</InArgument></Assign.Value>
+                                          </Assign>
+                                          <Assign DisplayName="Clear memo code">
+                                            <Assign.To><OutArgument x:TypeArguments="x:String">[memoCode]</OutArgument></Assign.To>
+                                            <Assign.Value><InArgument x:TypeArguments="x:String">[""]</InArgument></Assign.Value>
+                                          </Assign>
+                                        </Sequence>
+                                      </If.Else>
+                                    </If>
+                                  </Sequence>
+                                </If.Then>
+                              </If>
+                              <ui:RetryScope DisplayName="Add case note (retry)" NumberOfRetries="3">
+                                <ui:RetryScope.ActivityBody>
+                                  <ActivityAction>
+                                    <Sequence DisplayName="Post note">
+                                      <ui:HttpClient DisplayName="POST case note" Method="POST" BodyFormat="application/json"
+                                        EndPoint="[in_QaqcApi + &quot;/cases/&quot; + in_CaseId + &quot;/notes&quot;]"
+                                        Body="[&quot;{&quot;&quot;text&quot;&quot;: &quot;&quot;QC result &quot; + out_FinalState + &quot;; host memo &quot; + hostResult + &quot;&quot;&quot;}&quot;]"
+                                        Result="[noteResponse]" StatusCode="[noteStatus]">
+                                        <ui:HttpClient.Headers>
+                                          <InArgument x:TypeArguments="x:String" x:Key="Authorization">["Bearer " + in_ApiToken]</InArgument>
+                                          <InArgument x:TypeArguments="x:String" x:Key="Idempotency-Key">["note-" + in_CaseId]</InArgument>
+                                        </ui:HttpClient.Headers>
+                                      </ui:HttpClient>
+                                      <If DisplayName="Note accepted?" Condition="[noteStatus &lt;&gt; 201]">
+                                        <If.Then>
+                                          <Throw DisplayName="Note was not accepted" />
+                                        </If.Then>
+                                      </If>
+                                    </Sequence>
+                                  </ActivityAction>
+                                </ui:RetryScope.ActivityBody>
+                              </ui:RetryScope>
+                              <Assign DisplayName="Output memo code">
+                                <Assign.To><OutArgument x:TypeArguments="x:String">[out_MemoCode]</OutArgument></Assign.To>
+                                <Assign.Value><InArgument x:TypeArguments="x:String">[memoCode]</InArgument></Assign.Value>
+                              </Assign>
+                              <If DisplayName="Host rejected memo?" Condition="[hostResult = &quot;REJECTED&quot;]">
+                                <If.Then>
+                                  <Assign DisplayName="Status HOST_REJECTED">
+                                    <Assign.To><OutArgument x:TypeArguments="x:String">[out_Status]</OutArgument></Assign.To>
+                                    <Assign.Value><InArgument x:TypeArguments="x:String">["HOST_REJECTED"]</InArgument></Assign.Value>
+                                  </Assign>
+                                </If.Then>
+                                <If.Else>
+                                  <Assign DisplayName="Status DONE">
+                                    <Assign.To><OutArgument x:TypeArguments="x:String">[out_Status]</OutArgument></Assign.To>
+                                    <Assign.Value><InArgument x:TypeArguments="x:String">["DONE"]</InArgument></Assign.Value>
+                                  </Assign>
+                                </If.Else>
+                              </If>
+                            </Sequence>
+                          </If.Else>
+                        </If>
+                      </Sequence>
+                    </If.Then>
+                    <If.Else>
+                      <Sequence DisplayName="Skip closed case">
+                        <Assign DisplayName="Status SKIPPED">
+                          <Assign.To><OutArgument x:TypeArguments="x:String">[out_Status]</OutArgument></Assign.To>
+                          <Assign.Value><InArgument x:TypeArguments="x:String">["SKIPPED"]</InArgument></Assign.Value>
+                        </Assign>
+                        <Assign DisplayName="Final state unchanged">
+                          <Assign.To><OutArgument x:TypeArguments="x:String">[out_FinalState]</OutArgument></Assign.To>
+                          <Assign.Value><InArgument x:TypeArguments="x:String">[state0]</InArgument></Assign.Value>
+                        </Assign>
+                      </Sequence>
+                    </If.Else>
+                  </If>
+                </Sequence>
+              </If.Else>
+            </If>
+          </Sequence>
+        </ActivityAction>
+      </ui:OpenBrowser.Body>
+    </ui:OpenBrowser>
+  </Sequence>
+</Activity>
