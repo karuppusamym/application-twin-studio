@@ -1,0 +1,17 @@
+id: uipath-account-closure
+name: Account closure (UiPath, 3270 only)
+tool: uipath
+version: 1.0.0
+role: original
+owner: unassigned (demo)
+process: account-closure
+objective: Close an account through the core banking 3270 screens and report the host's answer.
+combination: 3270 only
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_HostConnection: "{{corebank.tn3270.host}}:{{corebank.tn3270.port}}"
+  in_HostUser: "{{corebank.credentials.userid}}"
+  in_HostPassword: "{{corebank.credentials.password}}"
+  in_AccountId: "{{inputs.account_id}}"
+outputs: {status: out_Status, message: out_Message}

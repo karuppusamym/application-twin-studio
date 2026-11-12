@@ -1,0 +1,76 @@
+# Wire payments twin exposed as a SOAP 1.1 service. DEMONSTRATION rules only.
+schema_version: "1.0"
+application_id: payments
+name: Wire Payments (SOAP)
+spec_version: "0.1.0"
+owner: unassigned (demo)
+interfaces:
+  - {id: wires-soap, protocol: soap, path: /soap, namespace: "urn:demo:payments"}
+  - {id: wires-db, protocol: sql}
+dependencies:
+  - {application_id: corebank, interface_id: host-api, required: true}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: true, status: modeled}
+entities:
+  wire:
+    key: wire_id
+    state_field: status
+    transitions:
+      PENDING: [RELEASED, REJECTED, HELD]
+      HELD: [RELEASED, REJECTED]
+    fields:
+      wire_id: string
+      account_id: string
+      beneficiary: string
+      amount: decimal
+      currency: string
+      status: {type: string, enum: [PENDING, RELEASED, REJECTED, HELD]}
+      reason: string
+errors:
+  WIRE_NOT_FOUND: {status: 404, message: Wire not found}
+  WIRE_NOT_PENDING: {status: 409, message: Wire is not pending}
+  ACCOUNT_NOT_ACTIVE: {status: 409, message: Debit account is not active}
+operations:
+  - id: get-wire
+    interface: wires-soap
+    soap_operation: GetWire
+    verification: demonstration
+    steps:
+      - load: {entity: wire, key: $body.wireId, not_found: WIRE_NOT_FOUND}
+      - respond: {status: 200, body: $wire}
+
+  - id: release-wire
+    interface: wires-soap
+    soap_operation: ReleaseWire
+    verification: demonstration
+    steps:
+      - load: {entity: wire, key: $body.wireId, not_found: WIRE_NOT_FOUND}
+      - require: {that: {eq: [$wire.status, PENDING]}, error: WIRE_NOT_PENDING}
+      - call: {as: account, dependency: corebank, operation: get-account, path: {account_id: $wire.account_id}, tolerate: [404]}
+      - require: {that: {eq: [$account.status, ACTIVE]}, error: ACCOUNT_NOT_ACTIVE}
+      - update: {entity: wire, key: $wire.wire_id, set: {status: RELEASED, reason: RISK_CLEAR}}
+      - emit: {event: wire.released, payload: {wire_id: $wire.wire_id, amount: $wire.amount, currency: $wire.currency}}
+      - respond: {status: 200, body: $wire}
+
+  - id: hold-wire
+    interface: wires-soap
+    soap_operation: HoldWire
+    verification: demonstration
+    steps:
+      - load: {entity: wire, key: $body.wireId, not_found: WIRE_NOT_FOUND}
+      - require: {that: {eq: [$wire.status, PENDING]}, error: WIRE_NOT_PENDING}
+      - update: {entity: wire, key: $wire.wire_id, set: {status: HELD, reason: $body.reason}}
+      - emit: {event: wire.held, payload: {wire_id: $wire.wire_id, reason: $body.reason}}
+      - respond: {status: 200, body: $wire}
+
+  - id: reject-wire
+    interface: wires-soap
+    soap_operation: RejectWire
+    verification: demonstration
+    steps:
+      - load: {entity: wire, key: $body.wireId, not_found: WIRE_NOT_FOUND}
+      - require: {that: {eq: [$wire.status, PENDING]}, error: WIRE_NOT_PENDING}
+      - update: {entity: wire, key: $wire.wire_id, set: {status: REJECTED, reason: $body.reason}}
+      - emit: {event: wire.rejected, payload: {wire_id: $wire.wire_id, reason: $body.reason}}
+      - respond: {status: 200, body: $wire}

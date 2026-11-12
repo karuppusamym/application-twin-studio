@@ -30,7 +30,7 @@ SUPPORTED = {
     "LogMessage": ("data", None), "WriteLine": ("data", None), "Comment": ("data", None),
     "OpenBrowser": ("ui", "web"), "NavigateTo": ("ui", "web"), "TypeInto": ("ui", "web"), "Click": ("ui", "web"),
     "GetText": ("ui", "web"), "UiElementExists": ("ui", "web"), "CloseTab": ("ui", "web"),
-    "HttpClient": ("http", "http"),
+    "HttpClient": ("http", "http"), "SoapClient": ("soap", "soap"),
     "TerminalSession": ("terminal", "tn3270"), "TerminalSetFieldAtPosition": ("terminal", "tn3270"),
     "TerminalSendControlKey": ("terminal", "tn3270"), "TerminalGetTextAtPosition": ("terminal", "tn3270"),
     "TerminalWaitScreenText": ("terminal", "tn3270"),

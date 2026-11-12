@@ -58,6 +58,23 @@ class HttpApp:
         return self.request("POST", path, body if body is not None else {}, **kw)
 
 
+class SoapApp:
+    def __init__(self, url: str, namespace: str = "urn:ats"):
+        self.url, self.namespace = url, namespace
+
+    def call(self, operation: str, params: dict | None = None) -> dict:
+        """Returns {'ok', 'fields', 'fault_code', 'fault_string'}."""
+        from .runtime import soap
+        data = soap.envelope(operation, params or {}, self.namespace).encode()
+        req = urllib.request.Request(self.url, data=data, method="POST",
+                                     headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": operation})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return soap.parse_response(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            return soap.parse_response(exc.read().decode())
+
+
 class Twin:
     def __init__(self, doc: dict):
         self.apps, self.inputs, self.arguments = doc["apps"], doc.get("inputs") or {}, doc.get("arguments") or {}
@@ -71,6 +88,9 @@ class Twin:
     def http(self, app: str) -> HttpApp:
         b = self.apps[app]
         return HttpApp(b["http"], (b.get("auth") or {}).get("bearer"))
+
+    def soap(self, app: str) -> SoapApp:
+        return SoapApp(self.apps[app]["soap"])
 
     def terminal(self, app: str) -> Tn3270Client:
         t = self.apps[app]["tn3270"]

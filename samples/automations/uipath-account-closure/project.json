@@ -1,0 +1,14 @@
+{
+  "name": "AccountClosure",
+  "description": "Green-screen only: closes an account on the core banking host.",
+  "main": "Main.xaml",
+  "projectVersion": "1.0.0",
+  "studioVersion": "24.10.0",
+  "expressionLanguage": "VisualBasic",
+  "dependencies": {
+    "UiPath.System.Activities": "[24.10.0]",
+    "UiPath.UIAutomation.Activities": "[24.10.0]",
+    "UiPath.WebAPI.Activities": "[1.20.0]",
+    "UiPath.Terminal.Activities": "[2.7.0]"
+  }
+}

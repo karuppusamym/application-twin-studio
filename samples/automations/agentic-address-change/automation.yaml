@@ -1,0 +1,20 @@
+id: agentic-address-change
+name: Customer address change (agentic replacement)
+tool: agentic-python
+version: 0.1.0
+role: replacement
+replaces: uipath-address-change
+owner: unassigned (demo)
+process: address-change
+objective: Same outcome as the UiPath original; CRM through its API instead of the web UI.
+combination: REST + 3270
+runner: command
+command: [python, agent.py]
+arguments: {}
+requires:
+  - {app: crm, operation: get-request, interface: crm-api}
+  - {app: crm, operation: complete-request, interface: crm-api}
+  - {app: crm, operation: reject-request, interface: crm-api}
+  - {app: kyc, operation: get-identity, interface: identity-api}
+  - {app: corebank, operation: logon, interface: host-3270}
+  - {app: corebank, operation: update-address, interface: host-3270}

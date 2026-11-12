@@ -1,0 +1,64 @@
+id: recon-two-mismatches
+title: Two active loans on inactive accounts
+description: 'One account on hold, one closed: exactly one case each.'
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-account-recon
+inputs: {}
+patch:
+- app: corebank
+  entity: account
+  key_field: account_id
+  key: '4000001002'
+  set:
+    status: HOLD
+- app: corebank
+  entity: account
+  key_field: account_id
+  key: '4000001004'
+  set:
+    status: CLOSED
+assertions:
+- id: output-checked
+  type: output
+  path: checked
+  equals: 5
+  critical: true
+- id: output-opened
+  type: output
+  path: opened
+  equals: 2
+  critical: true
+- id: cases-for-hold
+  type: count
+  app: qaqc
+  entity: case
+  where:
+    reason: RECON_ACCOUNT_HOLD
+  equals: 1
+  critical: true
+- id: cases-for-closed
+  type: count
+  app: qaqc
+  entity: case
+  where:
+    reason: RECON_ACCOUNT_CLOSED
+  equals: 1
+  critical: true
+- id: total-cases
+  type: count
+  app: qaqc
+  entity: case
+  where: {}
+  equals: 7
+  critical: true
+- id: event-case.created
+  type: event
+  app: qaqc
+  event: case.created
+  count: 2

@@ -1,0 +1,16 @@
+id: playwright-case-triage
+name: Case triage (Playwright, real browser)
+tool: playwright
+version: 0.1.0
+role: original
+owner: unassigned (demo)
+process: case-triage
+objective: UI-only automation. Evaluates every NEW case by clicking through the QA/QC workbench in Chromium.
+combination: Web UI only (real browser)
+runner: command
+command: [python, triage.py]
+arguments: {}
+requires:
+  - {app: qaqc, operation: login, interface: cases-ui}
+  - {app: qaqc, operation: evaluate-case, interface: cases-api}
+  - {app: qaqc, operation: list-cases, interface: cases-api}

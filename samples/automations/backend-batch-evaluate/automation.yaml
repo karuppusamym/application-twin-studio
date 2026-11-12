@@ -6,6 +6,7 @@ role: original
 owner: unassigned (demo)
 process: batch-evaluate
 objective: Backend-only automation with no UI. Reads NEW cases with SQL and evaluates each through the API.
+combination: SQL + REST
 runner: command
 command: [python, batch.py]
 arguments: {}

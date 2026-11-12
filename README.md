@@ -51,6 +51,7 @@ python -m pytest -q
 | Behaviour engine | `ats/runtime/engine.py` | Runs an operation in one transaction with its idempotency receipt and outbox events. Fault injection by call occurrence. |
 | Web adapter | `ats/runtime/web.py` | Server-rendered pages with stable element ids, login session. Buttons call the same handlers as the API. |
 | TN3270 adapter | `ats/runtime/tn3270.py`, `screens.py` | Host-side Telnet 3270 server (EBCDIC, SBA/SF/IC orders, AID keys) over a screen state machine, plus a small client. |
+| SOAP adapter | `ats/runtime/soap.py` | SOAP 1.1 document-style requests and Faults over the same handlers. |
 | SQL | `ats/runtime/store.py` | Every entity is a real SQLite table a batch job can query. |
 | Environments | `ats/runtime/environment.py` | One isolated environment per run: own databases, token, clock, fault plan, TN3270 port. |
 | UiPath importer | `ats/importers/uipath.py` | Static, safe XAML parsing. Unsupported activities become gaps. |
@@ -59,18 +60,36 @@ python -m pytest -q
 | Validation | `ats/validation.py` | Hand-written assertions, A/B business diff, scoped certificate. |
 | Control plane | `ats/control/` | `/v1` API, twin gateway at `/env/{env}/{app}/...`, portal. |
 
-### Sample scenario set
+### Sample set: 8 twins, 7 processes, 41 scenarios
 
-Five twins — QA/QC workbench (UI + API + SQL), Mortgage, KYC, Documents (API), Core Banking (3270 +
-mainframe API + SQL) — and three automations of a synthetic "loan QC review" process:
+Twins: QA/QC workbench (web UI + REST + SQL), Customer Service CRM (web UI + REST + SQL), Core Banking host
+(3270 + mainframe REST API + SQL), Wire Payments (**SOAP** + SQL), Risk screening, Mortgage, KYC, Documents (REST).
 
-* `uipath-loan-qc-review` — XAML: web UI login, evaluate, 3270 memo, API note with retry.
-* `agentic-loan-qc-review` — tool-using agent loop: API-first plus the same 3270 host.
-* `backend-batch-evaluate` — no UI: SQL read, API writes.
-* `uipath-legacy-branch-report` — IE, desktop app, Excel, custom code: **correctly BLOCKED**.
+| Process | Twins | Original | Replacement | Scenarios |
+|---|---|---|---|---|
+| loan-qc-review | qaqc, mortgage, kyc, documents, corebank | UiPath: web UI + 3270 + REST | agent: REST + 3270 | 12 |
+| address-change | crm, kyc, corebank | UiPath: web UI + REST + 3270 | agent: REST + 3270 | 8 |
+| wire-release | payments, risk, corebank | UiPath: SOAP + REST + mainframe API | agent: same interfaces | 9 |
+| account-closure | corebank | UiPath: 3270 only | agent: mainframe API only | 5 |
+| case-triage | qaqc + dependencies | Playwright: web UI in real Chromium | script: REST only | 3 |
+| batch-evaluate | qaqc + dependencies | Python batch: SQL + REST | (single run) | 1 |
+| loan-account-recon | mortgage, corebank, qaqc | Python batch: SQL + SQL + REST | (single run) | 3 |
 
-13 scenarios: success, missing data, mismatch, dependency timeout with retry, outage, duplicate
-(timeout after commit), conflict, not found, host rejection, resume, batch.
+Plus `uipath-legacy-branch-report` (IE, desktop app, Excel, custom code), which is **correctly BLOCKED**.
+
+Scenario kinds covered: success, missing data, mismatch, boundary values (exactly at / one cent over a
+threshold), dependency timeout with retry, dependency outage, lost response after commit (idempotent
+retry), state conflict, not found, host rejection, validation failure, resume, interface substitution
+(terminal vs API), and "nothing to do".
+
+Run everything:
+
+```bash
+python -m ats all
+```
+
+The three newer UiPath projects are produced by `tools/gen_automations.py`; scenarios by
+`tools/gen_scenarios.py`. All of it is synthetic.
 
 ## Bring your own automation
 
@@ -94,20 +113,25 @@ update delete emit respond if set`. Mark each operation's `verification` honestl
 
 ## Limits (read this)
 
-Verified here (27 automated tests, Windows, Python 3.13): everything in the table above, against the
+Verified here (35 automated tests, 41 scenarios, Windows, Python 3.13): everything in the table above, against the
 sample twins and hand-authored sample automations.
 
 **Not verified / not built:**
 
-* **No real UiPath robot was used.** `xaml-replay` is a simulator for a small activity subset. The
-  sample XAML is hand-authored to follow Studio's layout; a real Studio export has not been imported.
+* **Every automation here is synthetic.** No real UiPath project was available, so the XAML samples are
+  hand-authored or generated to follow Studio's layout. They widen coverage of the twin and the
+  pipeline; they do not prove that a real Studio export imports cleanly.
+* **No real UiPath robot was used.** `xaml-replay` is a simulator for a small activity subset.
   The `uipath-robot` runner is an unexercised hand-off.
 * **TN3270 was verified only with the bundled client.** No wc3270/x3270 or UiPath Terminal session has
   connected to it. TN3270E, structured fields, colour/highlighting and printer sessions are not implemented.
 * **No real bank application, rule or data** was available. All rules are demonstration rules, so every
   certificate is `exploratory`.
 * **SQL is SQLite.** Oracle / SQL Server dialects, stored procedures and locking are not emulated.
-* **Not built:** SOAP, MQ/Kafka, file batch, IE mode, Windows desktop, AI-assisted spec authoring,
+* **Web UI** was driven by a real Chromium browser (Playwright) for one process; UiPath's own browser
+  driver and selector engine were not.
+* **SOAP** has no WSDL, WS-Security or attachments and was exercised only by the bundled client and replay.
+* **Not built:** MQ/Kafka, file batch, IE mode, Windows desktop, AI-assisted spec authoring,
   OIDC/RBAC, release signing, PostgreSQL job leases, container/OpenShift deployment, React portal.
 * **Local profile only:** binds to loopback with no authentication; jobs run on an in-process thread
   pool and a restart marks unfinished runs as ERROR.

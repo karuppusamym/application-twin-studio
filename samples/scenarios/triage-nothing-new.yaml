@@ -1,0 +1,93 @@
+id: triage-nothing-new
+title: No NEW cases
+description: ''
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: case-triage
+inputs: {}
+patch:
+- app: qaqc
+  entity: case
+  key_field: case_id
+  key: QC-1001
+  set:
+    state: COMPLETED
+- app: qaqc
+  entity: case
+  key_field: case_id
+  key: QC-1002
+  set:
+    state: COMPLETED
+- app: qaqc
+  entity: case
+  key_field: case_id
+  key: QC-1003
+  set:
+    state: COMPLETED
+- app: qaqc
+  entity: case
+  key_field: case_id
+  key: QC-1004
+  set:
+    state: COMPLETED
+assertions:
+- id: state-QC-1001
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1001
+  expect:
+    state: COMPLETED
+  critical: true
+- id: state-QC-1002
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1002
+  expect:
+    state: COMPLETED
+  critical: true
+- id: state-QC-1003
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1003
+  expect:
+    state: COMPLETED
+  critical: true
+- id: state-QC-1004
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1004
+  expect:
+    state: COMPLETED
+  critical: true
+- id: state-QC-1005
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1005
+  expect:
+    state: COMPLETED
+  critical: true
+- id: output-processed
+  type: output
+  path: processed
+  equals: 0
+  critical: true
+- id: output-failed
+  type: output
+  path: failed
+  equals: 0
+  critical: true
+- id: event-case.evaluated
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 0

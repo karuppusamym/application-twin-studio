@@ -69,7 +69,7 @@ window.addEventListener("hashchange", route);
 
 const PAGES = {
   async overview() {
-    const [apps, autos, scs, gaps] = await Promise.all([api("/v1/applications"), api("/v1/onboardings"), api("/v1/scenarios"), api("/v1/gaps")]);
+    const [apps, autos, scs, gaps, cov] = await Promise.all([api("/v1/applications"), api("/v1/onboardings"), api("/v1/scenarios"), api("/v1/gaps"), api("/v1/coverage")]);
     const crit = gaps.items.filter(g => g.severity === "critical").length;
     view.innerHTML = `
     <div class="card"><h2>What this does</h2>
@@ -81,6 +81,13 @@ const PAGES = {
       <div class="card"><h2>${scs.items.length} scenarios</h2><p class="mute">Success, missing data, mismatch, timeout, retry, duplicate, conflict and host rejection cases.</p><p><a href="#execution">Run original vs replacement →</a></p>
         <h2 style="margin-top:14px">${gaps.items.length} open gaps</h2><p>${badge(crit + " critical", crit ? "bad" : "ok")} ${badge((gaps.items.length - crit) + " evidence", "warn")}</p><p><a href="#gaps">Review gaps →</a></p></div>
     </div>
+    <div class="card"><h2>Coverage: processes and interface combinations</h2>
+      <table><tr><th>Process</th><th>Twins involved</th><th>Original</th><th>Replacement</th><th>Scenarios</th></tr>
+      ${cov.items.map(c => `<tr><td><b>${esc(c.process)}</b></td><td>${c.applications.map(esc).join(", ") || "—"}</td>
+        <td>${c.originals.map(a => `<a href="#onboarding/${a.id}">${esc(a.tool)}</a><br><span class="mute">${esc(a.combination)}</span>`).join("<br>") || "—"}</td>
+        <td>${c.replacements.map(a => `<a href="#onboarding/${a.id}">${esc(a.tool)}</a><br><span class="mute">${esc(a.combination)}</span>`).join("<br>") || `<span class="mute">single run</span>`}</td>
+        <td>${c.scenarios || badge("none", "warn")}</td></tr>`).join("")}</table>
+      <p class="mute">Run them all from a terminal: <code>python -m ats all</code></p></div>
     ${Object.keys(apps.spec_problems || {}).length ? `<div class="card"><h2>Specs rejected by validation</h2><pre>${esc(JSON.stringify(apps.spec_problems, null, 2))}</pre></div>` : ""}`;
   },
 

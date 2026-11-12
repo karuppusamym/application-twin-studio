@@ -1,0 +1,32 @@
+id: address-not-found
+title: Unknown request
+description: ''
+fixture: loan-review-base
+apps:
+- crm
+- kyc
+- corebank
+process: address-change
+inputs:
+  request_id: AR-9999
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: NOT_FOUND
+  critical: true
+- id: output-outcome
+  type: output
+  path: outcome
+  equals: NONE
+  critical: true
+- id: event-request.completed
+  type: event
+  app: crm
+  event: request.completed
+  count: 0
+- id: event-address.updated
+  type: event
+  app: corebank
+  event: address.updated
+  count: 0

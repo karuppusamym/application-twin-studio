@@ -1,0 +1,21 @@
+id: uipath-address-change
+name: Customer address change (UiPath)
+tool: uipath
+version: 1.0.0
+role: original
+owner: unassigned (demo)
+process: address-change
+objective: Take a pending CRM address request, verify identity with KYC, update the address on the core banking host, then complete or reject the request in the CRM.
+combination: Web UI + REST + 3270
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_CrmUrl: "{{crm.web}}"
+  in_CrmUser: "{{crm.credentials.username}}"
+  in_CrmPassword: "{{crm.credentials.password}}"
+  in_KycApi: "{{kyc.http}}"
+  in_HostConnection: "{{corebank.tn3270.host}}:{{corebank.tn3270.port}}"
+  in_HostUser: "{{corebank.credentials.userid}}"
+  in_HostPassword: "{{corebank.credentials.password}}"
+  in_RequestId: "{{inputs.request_id}}"
+outputs: {status: out_Status, outcome: out_Outcome}

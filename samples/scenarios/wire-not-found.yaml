@@ -1,0 +1,40 @@
+id: wire-not-found
+title: Unknown wire
+description: Payments answers with a SOAP fault.
+fixture: loan-review-base
+apps:
+- payments
+- risk
+- corebank
+process: wire-release
+inputs:
+  wire_id: W-9999
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: NOT_FOUND
+  critical: true
+- id: output-action
+  type: output
+  path: action
+  equals: NONE
+  critical: true
+- id: output-decision
+  type: output
+  path: decision
+  equals: NONE
+  critical: true
+- id: screening-count
+  type: count
+  app: risk
+  entity: screening
+  where:
+    wire_id: W-9999
+  equals: 0
+  critical: true
+- id: event-wire.released
+  type: event
+  app: payments
+  event: wire.released
+  count: 0

@@ -160,8 +160,8 @@ def analyse(automation: dict, specs: dict[str, dict]) -> dict:
                 gaps.append(_gap(aid, "unsupported_activity", "critical", n["reason"] or f"{act} is not supported", n,
                                  "Provide an adapter with a conformance test, or replace the step and record the diff."))
                 continue
-            if act in ("OpenBrowser", "NavigateTo", "HttpClient", "TerminalSession"):
-                attr = {"HttpClient": "EndPoint", "TerminalSession": "ConnectionString"}.get(act, "Url")
+            if act in ("OpenBrowser", "NavigateTo", "HttpClient", "SoapClient", "TerminalSession"):
+                attr = {"HttpClient": "EndPoint", "SoapClient": "EndPoint", "TerminalSession": "ConnectionString"}.get(act, "Url")
                 src, is_expr = vbexpr.unwrap(d.get(attr))
                 parts = vbexpr.concat_parts(src) if is_expr else [("lit", src)]
                 head = parts[0] if parts else None
@@ -179,6 +179,15 @@ def analyse(automation: dict, specs: dict[str, dict]) -> dict:
                     n["mapping"] = {"application_id": app, "interface": "tn3270"}
                     if not spec.get("terminal"):
                         gaps.append(_gap(aid, "missing_interface", "critical", f"{app} has no terminal interface", n, app=app))
+                elif act == "SoapClient":
+                    op = next((o["id"] for o in spec["operations"] if o.get("soap_operation") == d.get("Method")), None)
+                    if op:
+                        need(app, op, n["id"])
+                        n["mapping"] = {"application_id": app, "operation": op}
+                    else:
+                        gaps.append(_gap(aid, "unmodeled_operation", "critical",
+                                         f"SOAP operation {d.get('Method')} is not modelled by twin '{app}'", n,
+                                         "Add the operation to the ATS-Spec with evidence, then re-run onboarding.", app))
                 elif act == "HttpClient":
                     op = _route_match(spec, d.get("Method", "GET"), path)
                     if op:

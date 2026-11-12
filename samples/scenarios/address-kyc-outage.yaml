@@ -1,0 +1,61 @@
+id: address-kyc-outage
+title: KYC is down
+description: Without an identity answer the request must stay PENDING and nothing is updated.
+fixture: loan-review-base
+apps:
+- crm
+- kyc
+- corebank
+process: address-change
+inputs:
+  request_id: AR-7001
+faults:
+- app: kyc
+  operation: get-identity
+  occurrence: all
+  type: unavailable
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: FAILED
+  critical: true
+- id: output-outcome
+  type: output
+  path: outcome
+  equals: NONE
+  critical: true
+- id: request-state
+  type: state
+  app: crm
+  entity: request
+  key: AR-7001
+  expect:
+    state: PENDING
+  critical: true
+- id: crm-customer-address
+  type: state
+  app: crm
+  entity: customer
+  key: C100
+  expect:
+    postal_code: '03301'
+  critical: true
+- id: host-account-address
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001001'
+  expect:
+    postal_code: null
+  critical: true
+- id: event-request.completed
+  type: event
+  app: crm
+  event: request.completed
+  count: 0
+- id: event-address.updated
+  type: event
+  app: corebank
+  event: address.updated
+  count: 0

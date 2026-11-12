@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
+from ..runtime import soap
 from ..runtime.environment import EnvironmentError_
 from ..spec import SpecError
 from .service import Conflict, NotFound, Studio
@@ -97,6 +98,10 @@ def create_app(studio: Studio) -> FastAPI:
     @app.get("/v1/scenarios")
     def scenarios():
         return {"items": list(studio.ws.scenarios().values()), "mutations": list(studio.ws.mutations().values())}
+
+    @app.get("/v1/coverage")
+    def coverage():
+        return {"items": studio.coverage()}
 
     @app.get("/v1/environments")
     def environments():
@@ -204,6 +209,25 @@ def create_app(studio: Studio) -> FastAPI:
                                     path=f"/env/{env_id}/{app_id}")
                 return resp
             return HTMLResponse(out["html"], status_code=out["status"])
+
+        soap_itf = next((i for i in twin.spec["interfaces"] if i["protocol"] == "soap" and i.get("path", "/soap") == path), None)
+        if soap_itf is not None:
+            xml = lambda text, status=200: Response(text, status_code=status, media_type="text/xml; charset=utf-8")
+            if method != "POST":
+                env.record_call(app_id, f"(unmodeled) {method} {path} (WSDL is not generated)", "soap", None)
+                return xml(soap.fault("UNMODELED_OPERATION", "this twin does not serve a WSDL", True), 501)
+            try:
+                element, params = soap.parse_envelope(raw)
+            except soap.SoapError as exc:
+                return xml(soap.fault("VALIDATION_ERROR", str(exc), True), 500)
+            sop = next((o for o in twin.spec["operations"] if o.get("soap_operation") == element and o["interface"] == soap_itf["id"]), None)
+            if sop is None:
+                env.record_call(app_id, f"(unmodeled) SOAP {element}", "soap", None)
+                return xml(soap.fault("UNMODELED_OPERATION", f"{app_id} twin does not model SOAP operation {element}", True), 500)
+            res = twin.invoke(sop["id"], body=params, headers=headers, caller="api")
+            if res.ok:
+                return xml(soap.envelope(element + "Response", res.body, soap_itf.get("namespace", f"urn:ats:{app_id}")))
+            return xml(soap.fault(res.body["code"], res.body["message"], res.status < 500, res.body.get("trace_id")), 500)
 
         hit = twin.match(method, path)
         if hit is None:

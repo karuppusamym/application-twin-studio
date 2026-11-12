@@ -1,0 +1,16 @@
+id: backend-loan-account-recon
+name: Loan / account reconciliation (backend only)
+tool: python-batch
+version: 0.1.0
+role: original
+owner: unassigned (demo)
+process: loan-account-recon
+objective: Cross-database reconciliation. Opens a QA/QC case for every active loan whose host account is not active.
+combination: SQL + SQL + REST
+runner: command
+command: [python, recon.py]
+arguments: {}
+requires:
+  - {app: mortgage, interface: loans-db, entity: loan}
+  - {app: corebank, interface: host-db, entity: account}
+  - {app: qaqc, operation: create-case, interface: cases-api}

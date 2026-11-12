@@ -1,0 +1,57 @@
+id: address-kyc-mismatch
+title: 'KYC mismatch: request rejected'
+description: Nothing may change on the host or on the customer record.
+fixture: loan-review-base
+apps:
+- crm
+- kyc
+- corebank
+process: address-change
+inputs:
+  request_id: AR-7002
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: DONE
+  critical: true
+- id: output-outcome
+  type: output
+  path: outcome
+  equals: REJECTED
+  critical: true
+- id: request-state
+  type: state
+  app: crm
+  entity: request
+  key: AR-7002
+  expect:
+    state: REJECTED
+    reason: KYC_NOT_VERIFIED
+  critical: true
+- id: crm-customer-address
+  type: state
+  app: crm
+  entity: customer
+  key: C102
+  expect:
+    postal_code: 03820
+  critical: true
+- id: host-account-address
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001003'
+  expect:
+    postal_code: null
+  critical: true
+- id: event-request.completed
+  type: event
+  app: crm
+  event: request.completed
+  count: 0
+- id: event-address.updated
+  type: event
+  app: corebank
+  event: address.updated
+  count: 0

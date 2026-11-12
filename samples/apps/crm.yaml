@@ -1,0 +1,155 @@
+# Customer service CRM twin: web UI + REST API. DEMONSTRATION rules only.
+schema_version: "1.0"
+application_id: crm
+name: Customer Service CRM
+spec_version: "0.1.0"
+owner: unassigned (demo)
+interfaces:
+  - {id: crm-api, protocol: http, auth: {type: bearer}}
+  - {id: crm-ui, protocol: web}
+  - {id: crm-db, protocol: sql}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: true, status: modeled}
+  interface: {required: true, status: modeled}
+entities:
+  user:
+    key: username
+    fields: {username: string, password: string, display_name: string}
+  customer:
+    key: customer_id
+    fields: {customer_id: string, full_name: string, address_line: string, city: string, postal_code: string}
+  request:
+    key: request_id
+    state_field: state
+    transitions:
+      PENDING: [COMPLETED, REJECTED]
+    fields:
+      request_id: string
+      customer_id: string
+      account_id: string
+      new_address_line: string
+      new_city: string
+      new_postal_code: string
+      state: {type: string, enum: [PENDING, COMPLETED, REJECTED]}
+      reason: string
+      decided_at: string
+errors:
+  REQUEST_NOT_FOUND: {status: 404, message: Address change request not found}
+  INVALID_CREDENTIALS: {status: 401, message: Invalid user ID or password}
+operations:
+  - id: login
+    interface: crm-ui
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [username, password]
+      properties: {username: {type: string, minLength: 1}, password: {type: string, minLength: 1}}
+    steps:
+      - load: {entity: user, key: $body.username, not_found: INVALID_CREDENTIALS}
+      - require: {that: {eq: [$user.password, $body.password]}, error: INVALID_CREDENTIALS}
+      - respond: {status: 200, body: {username: $user.username}}
+
+  - id: list-requests
+    interface: crm-api
+    route: GET /requests
+    verification: demonstration
+    steps:
+      - query: {as: items, entity: request, where: {state: $query.state}}
+      - respond: {status: 200, body: {items: $items}}
+
+  - id: get-request
+    interface: crm-api
+    route: GET /requests/{request_id}
+    verification: demonstration
+    steps:
+      - load: {entity: request, key: $path.request_id, not_found: REQUEST_NOT_FOUND}
+      - respond: {status: 200, body: $request}
+
+  - id: complete-request
+    interface: crm-api
+    route: POST /requests/{request_id}/complete
+    verification: demonstration
+    steps:
+      - load: {entity: request, key: $path.request_id, not_found: REQUEST_NOT_FOUND}
+      - require:
+          that: {eq: [$request.state, PENDING]}
+          error: STATE_CONFLICT
+          message: "Request ${request.request_id} is already ${request.state}"
+      - update:
+          entity: customer
+          key: $request.customer_id
+          set: {address_line: $request.new_address_line, city: $request.new_city, postal_code: $request.new_postal_code}
+      - update: {entity: request, key: $request.request_id, set: {state: COMPLETED, reason: ADDRESS_UPDATED, decided_at: $now}}
+      - emit: {event: request.completed, payload: {request_id: $request.request_id, customer_id: $request.customer_id}}
+      - respond: {status: 200, body: $request}
+
+  - id: reject-request
+    interface: crm-api
+    route: POST /requests/{request_id}/reject
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [reason]
+      properties: {reason: {type: string, minLength: 1, maxLength: 40}}
+    steps:
+      - load: {entity: request, key: $path.request_id, not_found: REQUEST_NOT_FOUND}
+      - require: {that: {eq: [$request.state, PENDING]}, error: STATE_CONFLICT}
+      - update: {entity: request, key: $request.request_id, set: {state: REJECTED, reason: $body.reason, decided_at: $now}}
+      - emit: {event: request.rejected, payload: {request_id: $request.request_id, reason: $body.reason}}
+      - respond: {status: 200, body: $request}
+
+ui:
+  title: Customer Service CRM
+  home: /ui/requests
+  session: {login_page: /ui/login, cookie: CRMSESSION}
+  nav:
+    - {id: requests, label: Address requests, path: /ui/requests}
+  pages:
+    - id: login
+      path: /ui/login
+      type: form
+      public: true
+      login: true
+      title: CRM sign in
+      operation: login
+      on_success: /ui/requests
+      fields:
+        - {name: username, label: User ID, id: crm-user}
+        - {name: password, label: Password, id: crm-password, type: password}
+      submit: {id: btn-signin, label: Sign in}
+    - id: requests
+      path: /ui/requests
+      type: table
+      title: Address change requests
+      operation: list-requests
+      key: request_id
+      filters:
+        - {name: state, label: State, options: ["", PENDING, COMPLETED, REJECTED]}
+      columns:
+        - {field: request_id, label: Request, link: "/ui/requests/{request_id}"}
+        - {field: customer_id, label: Customer}
+        - {field: account_id, label: Account}
+        - {field: state, label: State}
+        - {field: reason, label: Reason}
+    - id: request
+      path: /ui/requests/{request_id}
+      type: detail
+      title: Address change request
+      operation: get-request
+      fields:
+        - {field: request_id, label: Request}
+        - {field: customer_id, label: Customer}
+        - {field: account_id, label: Account}
+        - {field: new_address_line, label: New address line}
+        - {field: new_city, label: New city}
+        - {field: new_postal_code, label: New postal code}
+        - {field: state, label: State}
+        - {field: reason, label: Reason}
+      actions:
+        - {id: btn-complete, label: Complete, operation: complete-request, success_message: Request completed}
+        - id: btn-reject
+          label: Reject
+          operation: reject-request
+          success_message: Request rejected
+          fields: [{name: reason, label: Reject reason, id: reject-reason}]

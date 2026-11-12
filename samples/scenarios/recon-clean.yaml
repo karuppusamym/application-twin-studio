@@ -1,0 +1,51 @@
+id: recon-clean
+title: Loans and accounts agree
+description: Nothing to open.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: loan-account-recon
+inputs: {}
+assertions:
+- id: output-checked
+  type: output
+  path: checked
+  equals: 5
+  critical: true
+- id: output-opened
+  type: output
+  path: opened
+  equals: 0
+  critical: true
+- id: cases-for-hold
+  type: count
+  app: qaqc
+  entity: case
+  where:
+    reason: RECON_ACCOUNT_HOLD
+  equals: 0
+  critical: true
+- id: cases-for-closed
+  type: count
+  app: qaqc
+  entity: case
+  where:
+    reason: RECON_ACCOUNT_CLOSED
+  equals: 0
+  critical: true
+- id: total-cases
+  type: count
+  app: qaqc
+  entity: case
+  where: {}
+  equals: 5
+  critical: true
+- id: event-case.created
+  type: event
+  app: qaqc
+  event: case.created
+  count: 0

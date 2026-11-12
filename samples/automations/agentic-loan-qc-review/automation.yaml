@@ -7,6 +7,7 @@ replaces: uipath-loan-qc-review
 owner: unassigned (demo)
 process: loan-qc-review
 objective: Same business outcome as the UiPath original, API-first, with a tool-using agent loop.
+combination: REST + 3270
 runner: command
 command: [python, agent.py]
 arguments: {}

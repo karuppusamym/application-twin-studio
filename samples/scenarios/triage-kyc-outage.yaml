@@ -1,0 +1,65 @@
+id: triage-kyc-outage
+title: KYC down during triage
+description: Every evaluation fails; no case may change state.
+fixture: loan-review-base
+apps:
+- qaqc
+- mortgage
+- kyc
+- documents
+- corebank
+process: case-triage
+inputs: {}
+faults:
+- app: kyc
+  operation: get-identity
+  occurrence: all
+  type: unavailable
+assertions:
+- id: state-QC-1001
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1001
+  expect:
+    state: NEW
+  critical: true
+- id: state-QC-1002
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1002
+  expect:
+    state: NEW
+  critical: true
+- id: state-QC-1003
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1003
+  expect:
+    state: NEW
+  critical: true
+- id: state-QC-1004
+  type: state
+  app: qaqc
+  entity: case
+  key: QC-1004
+  expect:
+    state: NEW
+  critical: true
+- id: output-processed
+  type: output
+  path: processed
+  equals: 0
+  critical: true
+- id: output-failed
+  type: output
+  path: failed
+  equals: 4
+  critical: true
+- id: event-case.evaluated
+  type: event
+  app: qaqc
+  event: case.evaluated
+  count: 0

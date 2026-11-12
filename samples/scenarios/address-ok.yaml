@@ -1,0 +1,57 @@
+id: address-ok
+title: Verified customer, address updated everywhere
+description: KYC verified; host and CRM both end with the new address.
+fixture: loan-review-base
+apps:
+- crm
+- kyc
+- corebank
+process: address-change
+inputs:
+  request_id: AR-7001
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: DONE
+  critical: true
+- id: output-outcome
+  type: output
+  path: outcome
+  equals: COMPLETED
+  critical: true
+- id: request-state
+  type: state
+  app: crm
+  entity: request
+  key: AR-7001
+  expect:
+    state: COMPLETED
+    reason: ADDRESS_UPDATED
+  critical: true
+- id: crm-customer-address
+  type: state
+  app: crm
+  entity: customer
+  key: C100
+  expect:
+    postal_code: 03801
+  critical: true
+- id: host-account-address
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001001'
+  expect:
+    postal_code: 03801
+  critical: true
+- id: event-request.completed
+  type: event
+  app: crm
+  event: request.completed
+  count: 1
+- id: event-address.updated
+  type: event
+  app: corebank
+  event: address.updated
+  count: 1

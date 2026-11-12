@@ -1,0 +1,69 @@
+id: wire-risk-outage
+title: Risk service is down
+description: 'No screening, no release: the wire must stay PENDING.'
+fixture: loan-review-base
+apps:
+- payments
+- risk
+- corebank
+process: wire-release
+inputs:
+  wire_id: W-5001
+faults:
+- app: risk
+  operation: screen-wire
+  occurrence: all
+  type: unavailable
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: FAILED
+  critical: true
+- id: output-action
+  type: output
+  path: action
+  equals: NONE
+  critical: true
+- id: output-decision
+  type: output
+  path: decision
+  equals: NONE
+  critical: true
+- id: screening-count
+  type: count
+  app: risk
+  entity: screening
+  where:
+    wire_id: W-5001
+  equals: 0
+  critical: true
+- id: wire-state
+  type: state
+  app: payments
+  entity: wire
+  key: W-5001
+  expect:
+    status: PENDING
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000001001'
+  expect:
+    status: ACTIVE
+  critical: true
+- id: host-memo-count
+  type: count
+  app: corebank
+  entity: memo
+  where:
+    account_id: '4000001001'
+  equals: 0
+  critical: true
+- id: event-wire.released
+  type: event
+  app: payments
+  event: wire.released
+  count: 0

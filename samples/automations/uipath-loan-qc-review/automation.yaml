@@ -6,6 +6,7 @@ role: original
 owner: unassigned (demo)
 process: loan-qc-review
 objective: Review one QA/QC case through the web workbench, post the result memo on the core banking host, add a case note.
+combination: Web UI + 3270 + REST
 entry: Main.xaml
 runner: xaml-replay        # switch to uipath-robot on a worker with a licensed robot
 arguments:

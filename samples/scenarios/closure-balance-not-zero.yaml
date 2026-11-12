@@ -1,0 +1,33 @@
+id: closure-balance-not-zero
+title: Balance not zero
+description: ''
+fixture: loan-review-base
+apps:
+- corebank
+process: account-closure
+inputs:
+  account_id: '4000002002'
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: REJECTED
+  critical: true
+- id: output-message
+  type: output
+  path: message
+  equals: BALANCE NOT ZERO - CLOSE REJECTED
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000002002'
+  expect:
+    status: ACTIVE
+  critical: true
+- id: event-account.closed
+  type: event
+  app: corebank
+  event: account.closed
+  count: 0

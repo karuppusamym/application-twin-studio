@@ -5,12 +5,16 @@ clock: "2026-11-11T09:00:00Z"
 credentials:            # synthetic test-only values, valid only inside a twin environment
   qaqc: {username: qa.bot, password: "Twin#2026"}
   corebank: {userid: QCBOT01, password: TWIN2026}
+  crm: {username: crm.bot, password: "Twin#2026"}
 references:
   - {from: qaqc.case.loan_id, to: mortgage.loan.loan_id}
   - {from: qaqc.case.customer_id, to: kyc.identity.customer_id}
   - {from: qaqc.case.document_id, to: documents.document.document_id}
   - {from: qaqc.case.account_id, to: corebank.account.account_id}
   - {from: mortgage.loan.account_id, to: corebank.account.account_id}
+  - {from: crm.request.customer_id, to: crm.customer.customer_id}
+  - {from: crm.request.account_id, to: corebank.account.account_id}
+  - {from: payments.wire.account_id, to: corebank.account.account_id}
 data:
   qaqc:
     user:
@@ -51,3 +55,29 @@ data:
       - {account_id: "4000001003", customer_id: C102, status: ACTIVE, balance: "98100.00", currency: USD}
       - {account_id: "4000001004", customer_id: C103, status: ACTIVE, balance: "409500.75", currency: USD}
       - {account_id: "4000001005", customer_id: C104, status: ACTIVE, balance: "74000.00", currency: USD}
+      # accounts for the closure process
+      - {account_id: "4000002001", customer_id: C100, status: ACTIVE, balance: "0.00", currency: USD}
+      - {account_id: "4000002002", customer_id: C101, status: ACTIVE, balance: "150.25", currency: USD}
+      - {account_id: "4000002003", customer_id: C102, status: HOLD, balance: "0.00", currency: USD}
+  crm:
+    user:
+      - {username: crm.bot, password: "Twin#2026", display_name: CRM Robot}
+    customer:
+      - {customer_id: C100, full_name: Avery Sample, address_line: 1 OLD MILL LANE, city: CONCORD, postal_code: "03301"}
+      - {customer_id: C101, full_name: Blake Example, address_line: 22 RIVER STREET, city: NASHUA, postal_code: "03060"}
+      - {customer_id: C102, full_name: Casey Placeholder, address_line: 5 ELM COURT, city: DOVER, postal_code: "03820"}
+      - {customer_id: C103, full_name: Devon Synthetic, address_line: 9 PINE AVENUE, city: KEENE, postal_code: "03431"}
+    request:
+      - {request_id: AR-7001, customer_id: C100, account_id: "4000001001", new_address_line: 12 HARBOR ROAD, new_city: PORTSMOUTH, new_postal_code: "03801", state: PENDING}
+      - {request_id: AR-7002, customer_id: C102, account_id: "4000001003", new_address_line: 40 MAIN STREET, new_city: EXETER, new_postal_code: "03833", state: PENDING}
+      - {request_id: AR-7003, customer_id: C101, account_id: "4000001002", new_address_line: 7 LAKE DRIVE, new_city: LACONIA, new_postal_code: ABCDE, state: PENDING}
+      - {request_id: AR-7004, customer_id: C103, account_id: "4000001004", new_address_line: 3 HILL ROAD, new_city: BERLIN, new_postal_code: "03570", state: COMPLETED, reason: ADDRESS_UPDATED}
+  payments:
+    wire:
+      - {wire_id: W-5001, account_id: "4000001001", beneficiary: ACME SUPPLIES, amount: "2500.00", currency: USD, status: PENDING}
+      - {wire_id: W-5002, account_id: "4000001002", beneficiary: NORTHWIND FREIGHT, amount: "250000.00", currency: USD, status: PENDING}
+      - {wire_id: W-5003, account_id: "4000001003", beneficiary: Shadow Trading, amount: "900.00", currency: USD, status: PENDING}
+      - {wire_id: W-5004, account_id: "4000001004", beneficiary: ACME SUPPLIES, amount: "1200.00", currency: USD, status: RELEASED, reason: RISK_CLEAR}
+  risk:
+    watchlist:
+      - {name: SHADOW TRADING, listed_on: "2026-09-15"}

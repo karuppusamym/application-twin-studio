@@ -29,6 +29,9 @@ entities:
       status: {type: string, enum: [ACTIVE, HOLD, CLOSED]}
       balance: decimal
       currency: string
+      address_line: string
+      city: string
+      postal_code: string
   memo:
     key: memo_id
     fields: {memo_id: string, account_id: string, code: string, text: string, operator: string, posted_at: string}
@@ -36,6 +39,10 @@ errors:
   ACCOUNT_NOT_FOUND: {status: 404, message: ACCOUNT NOT FOUND}
   ACCOUNT_CLOSED: {status: 409, message: ACCOUNT CLOSED - MEMO REJECTED}
   INVALID_LOGON: {status: 401, message: INVALID USERID OR PASSWORD}
+  ACCOUNT_CLOSED_NO_UPDATE: {status: 409, message: ACCOUNT CLOSED - UPDATE REJECTED}
+  ALREADY_CLOSED: {status: 409, message: ACCOUNT ALREADY CLOSED}
+  ACCOUNT_ON_HOLD: {status: 409, message: ACCOUNT ON HOLD - CLOSE REJECTED}
+  BALANCE_NOT_ZERO: {status: 409, message: BALANCE NOT ZERO - CLOSE REJECTED}
 operations:
   - id: logon
     interface: host-3270
@@ -90,6 +97,40 @@ operations:
       - emit: {event: memo.posted, payload: {account_id: $account.account_id, code: $body.code, memo_id: $memo.memo_id}}
       - respond: {status: 201, body: $memo}
 
+  - id: update-address
+    interface: host-api
+    route: PUT /accounts/{account_id}/address
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [address_line, city, postal_code]
+      properties:
+        address_line: {type: string, minLength: 1, maxLength: 30}
+        city: {type: string, minLength: 1, maxLength: 20}
+        postal_code: {type: string, pattern: "^[0-9]{5}$"}
+    steps:
+      - load: {entity: account, key: $path.account_id, not_found: ACCOUNT_NOT_FOUND}
+      - require: {that: {ne: [$account.status, CLOSED]}, error: ACCOUNT_CLOSED_NO_UPDATE}
+      - update:
+          entity: account
+          key: $account.account_id
+          set: {address_line: $body.address_line, city: $body.city, postal_code: $body.postal_code}
+      - emit: {event: address.updated, payload: {account_id: $account.account_id, postal_code: $body.postal_code}}
+      - respond: {status: 200, body: $account}
+
+  - id: close-account
+    interface: host-api
+    route: POST /accounts/{account_id}/close
+    verification: demonstration
+    steps:
+      - load: {entity: account, key: $path.account_id, not_found: ACCOUNT_NOT_FOUND}
+      - require: {that: {ne: [$account.status, CLOSED]}, error: ALREADY_CLOSED}
+      - require: {that: {ne: [$account.status, HOLD]}, error: ACCOUNT_ON_HOLD}
+      - require: {that: {eq: [$account.balance, 0]}, error: BALANCE_NOT_ZERO}
+      - update: {entity: account, key: $account.account_id, set: {status: CLOSED}}
+      - emit: {event: account.closed, payload: {account_id: $account.account_id}}
+      - respond: {status: 200, body: $account}
+
 terminal:
   rows: 24
   cols: 80
@@ -120,7 +161,9 @@ terminal:
         - [2, 30, "MAIN MENU (CBMN01)"]
         - [8, 20, "1  ACCOUNT INQUIRY"]
         - [9, 20, "2  POST QC MEMO"]
-        - [10, 20, "X  SIGN OFF"]
+        - [10, 20, "3  UPDATE ADDRESS"]
+        - [11, 20, "4  CLOSE ACCOUNT"]
+        - [12, 20, "X  SIGN OFF"]
         - [20, 2, "OPTION ===>"]
         - [24, 2, "ENTER=SELECT  PF3=SIGN OFF"]
       inputs:
@@ -134,6 +177,8 @@ terminal:
           cases:
             "1": {goto: ACCTINQ, clear: [acct]}
             "2": {goto: MEMO}
+            "3": {goto: ADDR}
+            "4": {goto: CLOSE}
             "X": {goto: LOGON, clear: [operator, acct]}
           default: {message: INVALID OPTION}
         PF3: {goto: LOGON, clear: [operator, acct]}
@@ -186,4 +231,55 @@ terminal:
           body: {code: {$upper: $field.code}, text: $field.text, operator: $s.operator}
           on_success: {message: "MEMO ${result.memo_id} POSTED"}
           on_error: {message: $error.message}
+        PF3: {goto: MENU}
+    ADDR:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 28, "UPDATE ADDRESS (CBAD01)"]
+        - [5, 4, "ACCOUNT NUMBER ===>"]
+        - [7, 4, "ADDRESS LINE   ===>"]
+        - [9, 4, "CITY           ===>"]
+        - [11, 4, "POSTAL CODE    ===>"]
+        - [24, 2, "ENTER=UPDATE  PF3=MENU"]
+      inputs:
+        - {name: account, row: 5, col: 25, len: 10}
+        - {name: line, row: 7, col: 25, len: 30}
+        - {name: city, row: 9, col: 25, len: 20}
+        - {name: postal, row: 11, col: 25, len: 5}
+      outputs:
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          operation: update-address
+          path: {account_id: $field.account}
+          body: {address_line: {$upper: $field.line}, city: {$upper: $field.city}, postal_code: $field.postal}
+          on_success: {message: ADDRESS UPDATED}
+          on_error:
+            switch: $error.code
+            cases:
+              VALIDATION_ERROR: {message: INVALID ADDRESS DATA}
+            default: {message: $error.message}
+        PF3: {goto: MENU}
+    CLOSE:
+      text:
+        - [1, 28, "COREBANK ONLINE SYSTEM"]
+        - [2, 28, "CLOSE ACCOUNT (CBCL01)"]
+        - [5, 4, "ACCOUNT NUMBER ===>"]
+        - [7, 4, "CONFIRM (Y/N)  ===>"]
+        - [24, 2, "ENTER=CLOSE  PF3=MENU"]
+      inputs:
+        - {name: account, row: 5, col: 25, len: 10}
+        - {name: confirm, row: 7, col: 25, len: 1}
+      outputs:
+        - {name: message, row: 23, col: 2, len: 78, value: $message, intense: true}
+      keys:
+        ENTER:
+          switch: {$upper: $field.confirm}
+          cases:
+            "Y":
+              operation: close-account
+              path: {account_id: $field.account}
+              on_success: {message: ACCOUNT CLOSED}
+              on_error: {message: $error.message}
+          default: {message: CONFIRM WITH Y}
         PF3: {goto: MENU}

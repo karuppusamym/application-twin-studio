@@ -173,6 +173,8 @@ class Environment:
                     b["http"] = root
                     if (itf.get("auth") or {}).get("type") == "bearer":
                         b["auth"] = {"bearer": self.token}
+                elif proto == "soap":
+                    b["soap"] = root + itf.get("path", "/soap")
                 elif proto == "web" and app_id in self.web:
                     b["web"] = root + "/ui"
                 elif proto == "tn3270" and app_id in self.tn:

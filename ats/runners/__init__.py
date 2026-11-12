@@ -84,7 +84,7 @@ def execute(automation: dict, bindings: dict, inputs: dict, workdir: Path, timeo
     args, _ = resolve_arguments(automation.get("arguments") or {}, bindings, inputs)
     try:
         if runner == "xaml-replay":
-            prefixes = [b[k] for b in bindings.values() for k in ("http", "web") if k in b]
+            prefixes = [b[k] for b in bindings.values() for k in ("http", "web", "soap") if k in b]
             hosts = [(b["tn3270"]["host"], b["tn3270"]["port"]) for b in bindings.values() if "tn3270" in b]
             replay = XamlReplay(Path(automation["_dir"]), prefixes, hosts)
             try:

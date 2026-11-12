@@ -1,0 +1,24 @@
+id: agentic-wire-release
+name: Wire release (agentic replacement)
+tool: agentic-python
+version: 0.1.0
+role: replacement
+replaces: uipath-wire-release
+owner: unassigned (demo)
+process: wire-release
+objective: Same outcome as the UiPath original using SOAP, REST and the mainframe API.
+combination: SOAP + REST + mainframe API
+runner: command
+command: [python, agent.py]
+arguments: {}
+requires:
+  - {app: payments, operation: get-wire, interface: wires-soap}
+  - {app: payments, operation: release-wire, interface: wires-soap}
+  - {app: payments, operation: hold-wire, interface: wires-soap}
+  - {app: payments, operation: reject-wire, interface: wires-soap}
+  - {app: risk, operation: screen-wire, interface: risk-api}
+  - {app: corebank, operation: post-memo, interface: host-api}
+variants:
+  defective-no-screening:
+    description: Converted agent releases the wire without risk screening.
+    env: {AGENT_BUG: release_without_screening}

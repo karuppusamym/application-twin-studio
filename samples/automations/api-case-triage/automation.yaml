@@ -1,0 +1,16 @@
+id: api-case-triage
+name: Case triage (API replacement)
+tool: agentic-python
+version: 0.1.0
+role: replacement
+replaces: playwright-case-triage
+owner: unassigned (demo)
+process: case-triage
+objective: Replace UI clicking with API calls and leave identical case state.
+combination: REST only
+runner: command
+command: [python, triage.py]
+arguments: {}
+requires:
+  - {app: qaqc, operation: list-cases, interface: cases-api}
+  - {app: qaqc, operation: evaluate-case, interface: cases-api}

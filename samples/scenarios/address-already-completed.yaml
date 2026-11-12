@@ -1,0 +1,48 @@
+id: address-already-completed
+title: Request was already completed
+description: ''
+fixture: loan-review-base
+apps:
+- crm
+- kyc
+- corebank
+process: address-change
+inputs:
+  request_id: AR-7004
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: SKIPPED
+  critical: true
+- id: output-outcome
+  type: output
+  path: outcome
+  equals: NONE
+  critical: true
+- id: request-state
+  type: state
+  app: crm
+  entity: request
+  key: AR-7004
+  expect:
+    state: COMPLETED
+  critical: true
+- id: crm-customer-address
+  type: state
+  app: crm
+  entity: customer
+  key: C103
+  expect:
+    postal_code: '03431'
+  critical: true
+- id: event-request.completed
+  type: event
+  app: crm
+  event: request.completed
+  count: 0
+- id: event-address.updated
+  type: event
+  app: corebank
+  event: address.updated
+  count: 0

@@ -18,9 +18,9 @@ import yaml
 from . import expr
 
 SCHEMA_VERSION = "1.0"
-PROTOCOLS = {"http", "web", "tn3270", "sql"}
+PROTOCOLS = {"http", "web", "tn3270", "sql", "soap"}
 # Protocols that can be registered and mapped but have no executable adapter yet.
-UNSUPPORTED_PROTOCOLS = {"soap", "mq", "kafka", "file-batch", "ie-legacy", "windows-desktop", "tn5250"}
+UNSUPPORTED_PROTOCOLS = {"mq", "kafka", "file-batch", "ie-legacy", "windows-desktop", "tn5250"}
 STEP_TYPES = {"load", "query", "require", "call", "decide", "insert", "update", "delete", "emit", "respond", "if", "set"}
 VERIFICATION = {"hypothesis", "demonstration", "owner_approved", "reference_verified"}
 BUILTIN_ERRORS = {

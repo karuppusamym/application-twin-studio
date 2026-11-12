@@ -1,0 +1,70 @@
+# Risk screening twin (REST). It looks the wire up in Payments itself. DEMONSTRATION rules only.
+schema_version: "1.0"
+application_id: risk
+name: Risk Screening Service
+spec_version: "0.1.0"
+owner: unassigned (demo)
+interfaces:
+  - {id: risk-api, protocol: http, auth: {type: bearer}}
+dependencies:
+  - {application_id: payments, interface_id: wires-soap, required: true}
+fidelity:
+  contract: {required: true, status: modeled}
+  behavior: {required: true, status: modeled}
+entities:
+  watchlist:
+    key: name
+    fields: {name: string, listed_on: string}
+  screening:
+    key: screening_id
+    fields:
+      screening_id: string
+      wire_id: string
+      beneficiary: string
+      amount: decimal
+      decision: {type: string, enum: [CLEAR, REVIEW, BLOCK]}
+      reason: string
+errors:
+  WIRE_NOT_FOUND: {status: 404, message: Wire not found}
+operations:
+  - id: screen-wire
+    interface: risk-api
+    route: POST /screenings
+    verification: demonstration
+    idempotency: {required: false, header: Idempotency-Key}
+    input_schema:
+      type: object
+      required: [wire_id]
+      properties: {wire_id: {type: string, minLength: 1}}
+    steps:
+      - call: {as: wire, dependency: payments, operation: get-wire, body: {wireId: $body.wire_id}, tolerate: [404]}
+      - require: {that: {not: {exists: $wire._error}}, error: WIRE_NOT_FOUND}
+      - load: {as: hit, entity: watchlist, key: {$upper: $wire.beneficiary}}
+      - decide:
+          rules:
+            - id: K1-watchlist
+              when: {exists: $hit}
+              set: {decision: BLOCK, reason: WATCHLIST}
+            - id: K2-amount-threshold
+              when: {gt: [$wire.amount, 100000]}
+              set: {decision: REVIEW, reason: AMOUNT_THRESHOLD}
+          default: {decision: CLEAR, reason: NONE}
+      - insert:
+          entity: screening
+          id: {prefix: "S-", pad: 4}
+          values:
+            wire_id: $wire.wire_id
+            beneficiary: $wire.beneficiary
+            amount: $wire.amount
+            decision: $decision
+            reason: $reason
+      - emit: {event: wire.screened, payload: {wire_id: $wire.wire_id, decision: $decision, rule: $_rule}}
+      - respond: {status: 201, body: $screening}
+
+  - id: list-screenings
+    interface: risk-api
+    route: GET /screenings
+    verification: demonstration
+    steps:
+      - query: {as: items, entity: screening, where: {wire_id: $query.wire_id}}
+      - respond: {status: 200, body: {items: $items}}

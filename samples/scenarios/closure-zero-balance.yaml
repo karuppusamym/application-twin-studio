@@ -1,0 +1,33 @@
+id: closure-zero-balance
+title: Zero-balance account is closed
+description: Green-screen original vs mainframe-API replacement must leave the same host state.
+fixture: loan-review-base
+apps:
+- corebank
+process: account-closure
+inputs:
+  account_id: '4000002001'
+assertions:
+- id: output-status
+  type: output
+  path: status
+  equals: CLOSED
+  critical: true
+- id: output-message
+  type: output
+  path: message
+  equals: ACCOUNT CLOSED
+  critical: true
+- id: account-status
+  type: state
+  app: corebank
+  entity: account
+  key: '4000002001'
+  expect:
+    status: CLOSED
+  critical: true
+- id: event-account.closed
+  type: event
+  app: corebank
+  event: account.closed
+  count: 1

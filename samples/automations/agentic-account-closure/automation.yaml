@@ -1,0 +1,15 @@
+id: agentic-account-closure
+name: Account closure (API replacement)
+tool: agentic-python
+version: 0.1.0
+role: replacement
+replaces: uipath-account-closure
+owner: unassigned (demo)
+process: account-closure
+objective: Replace screen scraping with the mainframe API and leave identical host state.
+combination: Mainframe API only
+runner: command
+command: [python, agent.py]
+arguments: {}
+requires:
+  - {app: corebank, operation: close-account, interface: host-api}

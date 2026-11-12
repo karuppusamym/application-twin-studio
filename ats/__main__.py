@@ -5,6 +5,7 @@
   python -m ats onboard <automation-id>     print the onboarding / readiness report
   python -m ats compare <scenario> <original> <replacement> [--mutation ID] [--variant NAME]
   python -m ats suite <original> <replacement>   run every scenario of the process, A vs B
+  python -m ats all                         run every process and print the coverage matrix
 """
 from __future__ import annotations
 
@@ -81,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     u = sub.add_parser("suite")
     u.add_argument("original"), u.add_argument("replacement")
     u.add_argument("--mutation"), u.add_argument("--variant")
+    sub.add_parser("all")
     args = ap.parse_args(argv)
 
     if args.cmd == "serve":
@@ -128,7 +130,47 @@ def main(argv: list[str] | None = None) -> int:
                 bad += (cmp_doc.get("certificate") or {}).get("result") != "EQUIVALENT_IN_SCOPE"
             print(f"\n{len(ids) - bad}/{len(ids)} scenarios equivalent in scope")
             return 1 if bad else 0
+        if args.cmd == "all":
+            rows, bad = run_everything(st, verbose=True)
+            print(f"\n{'PROCESS':<20} {'ORIGINAL -> REPLACEMENT':<58} {'MODE':<8} RESULT")
+            for r in rows:
+                print(f"{r['process']:<20} {r['pair']:<58} {r['mode']:<8} {r['passed']}/{r['total']}")
+            print(f"\n{sum(r['passed'] for r in rows)}/{sum(r['total'] for r in rows)} scenario checks passed")
+            return 1 if bad else 0
     return 0
+
+
+def run_everything(st: Studio, verbose: bool = False) -> tuple[list[dict], int]:
+    """Every process: A/B where a replacement exists, single runs otherwise. Blocked automations are skipped."""
+    autos, scenarios = st.ws.automations(), st.ws.scenarios()
+    rows, bad = [], 0
+    for process in sorted({s["process"] for s in scenarios.values()}):
+        ids = sorted(s["id"] for s in scenarios.values() if s["process"] == process)
+        originals = [a for a in autos.values() if a.get("process") == process and a.get("role") == "original"]
+        replacements = [a for a in autos.values() if a.get("process") == process and a.get("role") == "replacement"]
+        for orig in originals:
+            if not replacements:
+                passed = 0
+                for sid in ids:
+                    run = st.execute_run(st.new_run(sid, orig["id"])["id"])
+                    passed += run["status"] == "PASSED"
+                    if verbose:
+                        print(f"{sid}: {run['status']}")
+                rows.append({"process": process, "pair": orig["id"], "mode": "single", "passed": passed, "total": len(ids),
+                             "combination": orig.get("combination", "")})
+                bad += len(ids) - passed
+            for repl in replacements:
+                passed = 0
+                for sid in ids:
+                    c = st.execute_comparison(st.new_comparison(sid, orig["id"], repl["id"])["id"])
+                    ok = (c.get("certificate") or {}).get("result") == "EQUIVALENT_IN_SCOPE"
+                    passed += ok
+                    if verbose:
+                        print(f"{sid}: {(c.get('certificate') or {}).get('result')}")
+                rows.append({"process": process, "pair": f"{orig['id']} -> {repl['id']}", "mode": "A/B", "passed": passed,
+                             "total": len(ids), "combination": f"{orig.get('combination', '')}  vs  {repl.get('combination', '')}"})
+                bad += len(ids) - passed
+    return rows, bad
 
 
 if __name__ == "__main__":

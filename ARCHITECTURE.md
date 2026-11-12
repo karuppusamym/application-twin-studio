@@ -53,9 +53,9 @@ local profile.
 
 | Gate | Target | Status |
 |---|---|---|
-| Scenario coverage | ≥ 20 versioned cases | **Partial: 13** (covers success, missing data, mismatch, timeout, retry, duplicate, conflict; auth and cleanup-failure cases only at unit level) |
+| Scenario coverage | ≥ 20 versioned cases | **Met: 41** across 7 processes and 8 twins (success, missing data, mismatch, boundary, timeout, retry, duplicate, conflict, host rejection). Cleanup-failure is not covered. |
 | Determinism | 10 repeats identical | **Met** for one scenario/runner (`test_repeated_runs_are_deterministic`); not run for every case |
-| Reuse | Second automation reuses twin | **Met**: 3 automations share the QA/QC twin |
+| Reuse | Second automation reuses twin | **Met**: 6 automations share the QA/QC twin; 9 share the core banking twin through three different interfaces |
 | Isolation | 20 concurrent, zero cross-run access | **Met** at logical level (`test_concurrent_runs_do_not_interfere`, cross-environment token rejected) |
 | Recovery | Kill workers at each stage | **Not met**: restart marks runs ERROR; no resume |
 | Readiness integrity | Unsupported/unbound/missing blocks | **Met** (`test_unsupported_automation_is_blocked_and_cannot_run`) |
@@ -64,6 +64,8 @@ local profile.
 | Negative: defective replacement detected | — | **Met** |
 | Real UiPath package on licensed robot | — | **Not done** |
 | Real 3270 client conformance | — | **Not done** |
+| Real browser against the web twin | — | **Met** for one process (Playwright + Chromium) |
+| Interface substitution (3270 original vs API replacement) | — | **Met** (`test_interface_substitution...`) |
 
 ## Extending
 

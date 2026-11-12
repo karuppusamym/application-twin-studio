@@ -237,6 +237,22 @@ class XamlReplay:
         self._out(self._arg_text(el, "StatusCode"), scope, resp.status_code)
         self._note(rel, el, f"{method} {url} -> {resp.status_code}")
 
+    def _a_SoapClient(self, el, scope, rel):
+        from ..runtime import soap
+        url = str(self._val(el.get("EndPoint"), scope))
+        if not any(url == p or url.startswith(p + "/") for p in self.allowed):
+            raise Blocked(f"SOAP request to {url} is outside the bound test environment")
+        params = {}
+        p = prop(el, "Parameters")
+        for a in (p if p is not None else []):
+            params[a.get(f"{{{X_NS}}}Key")] = self._val((a.text or "").strip(), scope)
+        method = el.get("Method", "")
+        resp = self.http.post(url, content=soap.envelope(method, params, "urn:ats").encode(),
+                              headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": method})
+        self._out(self._arg_text(el, "Result"), scope, resp.text)
+        self._out(self._arg_text(el, "StatusCode"), scope, resp.status_code)
+        self._note(rel, el, f"SOAP {method} -> {resp.status_code}")
+
     # -- terminal ---------------------------------------------------------
     def _term(self) -> Tn3270Client:
         if self.terminal is None:

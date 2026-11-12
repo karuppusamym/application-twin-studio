@@ -4,7 +4,10 @@ Supported: string / integer literals, True / False / Nothing, variables,
 ``+`` and ``&`` concatenation, integer ``+ -``, comparisons, And / Or / Not
 (AndAlso / OrElse), parentheses, and the members .ToString .Trim .ToUpper
 .ToLower .Length .Contains(x) .StartsWith(x) .Equals(x) plus
-String.IsNullOrEmpty(x). Anything else raises ``Unsupported`` - the importer
+String.IsNullOrEmpty(x) and Regex.Match(input, "pattern").Groups(n).Value
+(also .Value / .Success; optional System.Text.RegularExpressions. prefix;
+pattern and input are length-capped and the pattern runs on Python's ``re``,
+so .NET-only regex syntax is not supported). Anything else raises ``Unsupported`` - the importer
 turns that into a gap instead of guessing. Uploaded code is never executed.
 """
 from __future__ import annotations
@@ -118,6 +121,39 @@ class _Parser:
             else:
                 left = _s(left) + _s(right)
 
+    def _regex(self, first: str) -> Any:
+        name = first
+        while name != "regex":  # System.Text.RegularExpressions.Regex
+            if not self.op("."):
+                raise Unsupported("only Regex.Match is supported from the System namespace")
+            name = self.take()[1].lower()
+        if not self.op(".") or self.take()[1].lower() != "match" or not self.op("("):
+            raise Unsupported("only Regex.Match(input, pattern) is supported")
+        text = self.expr()
+        self.op(",")
+        pattern = self.expr()
+        if not self.op(")"):
+            raise Unsupported("missing ) after Regex.Match")
+        m = _regex_match(_s(text), _s(pattern)) if self.vars is not None else None
+        if not self.op("."):
+            raise Unsupported("use .Value, .Success or .Groups(n).Value on a regex match")
+        member = self.take()[1].lower()
+        if member == "success":
+            return m is not None
+        if member == "value":
+            return m.group(0) if m else ""
+        if member == "groups" and self.op("("):
+            idx = self.expr()
+            if not self.op(")") or not self.op(".") or self.take()[1].lower() != "value":
+                raise Unsupported("use .Groups(n).Value")
+            if self.vars is None:
+                return ""
+            try:
+                return (m.group(int(idx)) or "") if m else ""
+            except IndexError as exc:
+                raise Unsupported(f"regex has no group {idx}") from exc
+        raise Unsupported(f"regex member .{member} is not supported")
+
     def primary(self) -> Any:
         kind, val = self.take()
         if kind == "str":
@@ -136,6 +172,8 @@ class _Parser:
                 value = False
             elif low == "nothing":
                 value = None
+            elif low in ("regex", "system"):
+                value = self._regex(low)
             elif low == "string" and self.op("."):
                 _, fn = self.take()
                 if fn.lower() != "isnullorempty" or not self.op("("):
@@ -172,6 +210,15 @@ class _Parser:
                      "contains": lambda: _s(args[0]) in s, "startswith": lambda: s.startswith(_s(args[0])),
                      "equals": lambda: s == _s(args[0])}[m]()
         return value
+
+
+def _regex_match(text: str, pattern: str):
+    if len(pattern) > 200 or len(text) > 200_000:
+        raise Unsupported("regex pattern or input too long")
+    try:
+        return re.search(pattern, text)
+    except re.error as exc:
+        raise Unsupported(f"regex not supported: {exc}") from exc
 
 
 def _s(v: Any) -> str:

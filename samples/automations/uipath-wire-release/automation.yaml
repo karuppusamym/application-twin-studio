@@ -1,0 +1,18 @@
+id: uipath-wire-release
+name: Wire release (UiPath, API only)
+tool: uipath
+version: 1.0.0
+role: original
+owner: unassigned (demo)
+process: wire-release
+objective: Screen a pending wire with Risk (REST), then release, hold or reject it in Payments (SOAP); flag the account on the host (mainframe API) when blocked.
+combination: SOAP + REST + mainframe API
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_PaymentsSoap: "{{payments.soap}}"
+  in_RiskApi: "{{risk.http}}"
+  in_RiskToken: "{{risk.auth.bearer}}"
+  in_HostApi: "{{corebank.http}}"
+  in_WireId: "{{inputs.wire_id}}"
+outputs: {status: out_Status, action: out_Action, decision: out_Decision}

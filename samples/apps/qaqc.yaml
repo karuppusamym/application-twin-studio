@@ -71,6 +71,32 @@ operations:
       - query: {as: items, entity: case, where: {state: $query.state}}
       - respond: {status: 200, body: {items: $items, count: {$count: $items}}}
 
+  - id: create-case
+    interface: cases-api
+    route: POST /cases
+    verification: demonstration
+    idempotency: {required: false, header: Idempotency-Key}
+    input_schema:
+      type: object
+      required: [customer_id, loan_id, account_id, reason]
+      properties:
+        customer_id: {type: string, minLength: 1}
+        loan_id: {type: string, minLength: 1}
+        account_id: {type: string, minLength: 1}
+        reason: {type: string, minLength: 1}
+    steps:
+      - insert:
+          entity: case
+          id: {prefix: "QC-R", pad: 3}
+          values:
+            customer_id: $body.customer_id
+            loan_id: $body.loan_id
+            account_id: $body.account_id
+            state: NEW
+            reason: $body.reason
+      - emit: {event: case.created, payload: {case_id: $case.case_id, reason: $body.reason}}
+      - respond: {status: 201, body: $case}
+
   - id: get-case
     interface: cases-api
     route: GET /cases/{case_id}

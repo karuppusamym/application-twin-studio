@@ -6,6 +6,7 @@ role: original
 owner: unassigned (demo)
 process: branch-report
 objective: Demonstrates honest blocking - uses Internet Explorer, a Windows desktop app, Excel, custom code, SQL Server and mail.
+combination: IE + desktop + Excel (unsupported)
 entry: Main.xaml
 runner: xaml-replay
 arguments:

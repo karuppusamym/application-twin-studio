@@ -5,6 +5,7 @@ name: Mortgage Servicing API
 spec_version: "0.1.0"
 interfaces:
   - {id: loans-api, protocol: http, auth: {type: bearer}}
+  - {id: loans-db, protocol: sql}
 fidelity:
   contract: {required: true, status: modeled}
   behavior: {required: false, status: modeled}

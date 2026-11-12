@@ -151,6 +151,19 @@ class Studio:
             raise NotFound(f"scenario {scenario_id} not found")
         return scs[scenario_id]
 
+    def coverage(self) -> list[dict]:
+        """Which processes exist, through which interface combinations, with how many scenarios."""
+        autos, scenarios = self.ws.automations(), self.ws.scenarios()
+        out = []
+        for process in sorted({a.get("process") for a in autos.values()} | {s["process"] for s in scenarios.values()}):
+            mine = [a for a in autos.values() if a.get("process") == process]
+            pick = lambda role: [{"id": a["id"], "name": a.get("name"), "tool": a.get("tool"), "combination": a.get("combination", "")}
+                                 for a in mine if a.get("role") == role]
+            apps = sorted({app for s in scenarios.values() if s["process"] == process for app in s["apps"]})
+            out.append({"process": process, "originals": pick("original"), "replacements": pick("replacement"),
+                        "scenarios": sum(1 for s in scenarios.values() if s["process"] == process), "applications": apps})
+        return out
+
     # -- onboarding -------------------------------------------------------
     def onboard(self, automation_id: str) -> dict:
         automation = self.automation(automation_id)
