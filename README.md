@@ -16,6 +16,10 @@ fixture + faults ─► environment A ◄─ original automation  │
 > synthetic data. A passing run proves consistency with the model, never equivalence with a real
 > application. Read [Limits](#limits-read-this) before relying on anything here.
 
+**Try the playable demo online:** https://karuppusamym.github.io/application-twin-studio/demo/ —
+a browser-only simulation (no server, no real twins behind it). Automations cannot run against it;
+for that, run the studio locally as below.
+
 ## Quick start
 
 ```bash
