@@ -144,3 +144,42 @@ def test_host_web_pages_show_the_host_message_line(srv):
             assert "ACCOUNT ON HOLD - CLOSE REJECTED</div>" in rejected.text and "ACCOUNT_ON_HOLD:" not in rejected.text
     finally:
         srv.studio.destroy(env["env_id"])
+
+
+def test_collateral_change_is_caught_even_when_every_business_check_passes(srv):
+    st = srv.studio
+    run = st.execute_run(st.new_run("closure-zero-balance", "agentic-account-closure", variant="defective-collateral-change")["id"])
+    failed = {a["id"]: a for a in run["assertions"] if not a["passed"]}
+    assert run["status"] == "FAILED" and set(failed) == {"no-unexpected-changes"}
+    assert "corebank.account 4000002002" in failed["no-unexpected-changes"]["detail"]
+    good = st.execute_run(st.new_run("closure-zero-balance", "agentic-account-closure")["id"])
+    assert good["status"] == "PASSED"
+
+
+def test_repeated_runs_catch_an_inconsistent_agent_that_passes_once(srv):
+    st = srv.studio
+    once = st.execute_comparison(st.new_comparison("wire-watchlist-block", "uipath-wire-release", "agentic-wire-release",
+                                                   replacement_variant="flaky-screening")["id"])
+    assert once["certificate"]["result"] == "EQUIVALENT_IN_SCOPE"          # a single run is fooled
+    assert any("ran once" in x for x in once["certificate"]["limits"])     # ...and says so
+    five = st.execute_comparison(st.new_comparison("wire-watchlist-block", "uipath-wire-release", "agentic-wire-release",
+                                                   replacement_variant="flaky-screening", repeat=5)["id"])
+    assert five["consistency"] == {"passed": 4, "attempts": 5, "all_passed": False}
+    assert five["certificate"]["result"] == "FAILED"
+    assert [x["attempt"] for x in five["attempts"] if x["status"] != "PASSED"] == [3]
+    steady = st.execute_comparison(st.new_comparison("wire-watchlist-block", "uipath-wire-release", "agentic-wire-release",
+                                                     repeat=3)["id"])
+    assert steady["consistency"]["all_passed"] and steady["certificate"]["result"] == "EQUIVALENT_IN_SCOPE"
+
+
+def test_unexpected_change_detection_unit():
+    from ats import validation
+    keys = {"bank": {"account": "id"}}
+    before = {"state": {"bank": {"account": [{"id": "A", "status": "OPEN", "_rev": 1}, {"id": "B", "status": "OPEN", "_rev": 1}]}}}
+    after = {"state": {"bank": {"account": [{"id": "A", "status": "CLOSED", "_rev": 2}, {"id": "B", "status": "OPEN", "_rev": 2},
+                                            {"id": "C", "status": "OPEN"}]}}}
+    scenario = {"assertions": [{"type": "state", "app": "bank", "entity": "account", "key": "A", "expect": {"status": "CLOSED"}}]}
+    res = validation.unexpected_changes_check(before, after, keys, scenario)
+    assert not res["passed"] and res["detail"] == "inserted bank.account C"      # _rev-only change on B is bookkeeping
+    assert validation.unexpected_changes_check(before, after, keys, {**scenario, "allowed_changes": [
+        {"app": "bank", "entity": "account"}]})["passed"]

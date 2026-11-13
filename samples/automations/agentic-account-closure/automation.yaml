@@ -13,3 +13,7 @@ command: [python, agent.py]
 arguments: {}
 requires:
   - {app: corebank, operation: close-account, interface: host-api}
+variants:
+  defective-collateral-change:
+    description: Closes the right account but also puts an unrequested hold on another account.
+    env: {AGENT_BUG: also_hold_neighbour}

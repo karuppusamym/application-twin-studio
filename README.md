@@ -109,6 +109,29 @@ python -m ats all
 The three newer UiPath projects are produced by `tools/gen_automations.py`; scenarios by
 `tools/gen_scenarios.py`. All of it is synthetic.
 
+### Checks for AI agents
+
+Two checks target the ways AI agents fail that a single pass/fail misses:
+
+* **Repeated runs.** `--repeat K` runs the replacement K times; it passes only if every attempt passes and
+  matches the original. The sample `flaky-screening` wire agent passes a single run but fails 1 of 5:
+  `python -m ats compare wire-watchlist-block uipath-wire-release agentic-wire-release --variant flaky-screening --repeat 5`
+* **Nothing else changed.** Every run compares twin state before and after. Any changed row the scenario did
+  not expect fails `no-unexpected-changes`, even when every business assertion passed. The sample
+  `defective-collateral-change` closure agent closes the right account but also holds another one, and only
+  this check catches it. Scenarios may declare legitimate extra changes under `allowed_changes`.
+
+The sample agents are deterministic Python scripts, so the flakiness here is simulated; with an LLM-driven
+agent the same `--repeat` measures real inconsistency.
+
+### Using an AI coding agent (Devin, Claude Code, ...) to build twins
+
+[docs/devin-playbook.md](docs/devin-playbook.md) is a ready playbook and [AGENTS.md](AGENTS.md) the short
+rules. The agent writes twin specs, scenarios or converted automations and opens a pull request; CI runs
+validation, tests, every process with `--repeat 3`, and `tools/guard_ai_changes.py`. The guard blocks two
+things: raising a rule's `verification` to owner-approved without the `owner-approved` label, and changing a
+twin and its expected results in the same pull request.
+
 ## Bring your own automation
 
 Any tool works if it honours the bindings contract:
@@ -131,7 +154,7 @@ update delete emit respond if set`. Mark each operation's `verification` honestl
 
 ## Limits (read this)
 
-Verified here (37 automated tests, 46 scenario checks, Windows, Python 3.13): everything in the table above, against the
+Verified here (40 automated tests, 46 scenario checks with agents repeated 3 times, Windows, Python 3.13): everything in the table above, against the
 sample twins and hand-authored sample automations.
 
 **Not verified / not built:**

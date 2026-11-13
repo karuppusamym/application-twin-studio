@@ -68,6 +68,62 @@ def evaluate(assertions: list[dict], snapshot: dict, runner: dict, keys: dict) -
     return out
 
 
+def changes(before: dict, after: dict, keys: dict) -> list[dict]:
+    """Row-level differences between two snapshots: inserted, updated (with fields) and deleted rows."""
+    out = []
+    for app in sorted(set(before["state"]) | set(after["state"])):
+        b_ents, a_ents = before["state"].get(app, {}), after["state"].get(app, {})
+        for entity in sorted(set(b_ents) | set(a_ents)):
+            k = keys.get(app, {}).get(entity)
+            if not k:
+                continue
+            b_rows = {str(r.get(k)): r for r in b_ents.get(entity, [])}
+            a_rows = {str(r.get(k)): r for r in a_ents.get(entity, [])}
+            for key in sorted(set(b_rows) | set(a_rows)):
+                old, new = b_rows.get(key), a_rows.get(key)
+                if old is None:
+                    out.append({"app": app, "entity": entity, "key": key, "change": "inserted", "row": new})
+                elif new is None:
+                    out.append({"app": app, "entity": entity, "key": key, "change": "deleted", "row": old})
+                else:
+                    fields = sorted(f for f in set(old) | set(new) if f not in DEFAULT_IGNORE and old.get(f) != new.get(f))
+                    if fields:
+                        out.append({"app": app, "entity": entity, "key": key, "change": "updated", "fields": fields, "row": new})
+    return out
+
+
+def allowed_changes(scenario: dict) -> list[dict]:
+    """What a scenario lets an automation change. Declared explicitly with `allowed_changes`, otherwise
+    derived from the assertions: a row the scenario checks is a row the automation may touch."""
+    if "allowed_changes" in scenario:
+        return scenario["allowed_changes"] or []
+    out = []
+    for a in scenario.get("assertions") or []:
+        if a["type"] == "state":
+            out.append({"app": a["app"], "entity": a["entity"], "key": a["key"]})
+        elif a["type"] in ("count", "rows"):
+            out.append({"app": a["app"], "entity": a["entity"], "where": a.get("where") or {}})
+    return out
+
+
+def _permits(rule: dict, ch: dict) -> bool:
+    if rule["app"] != ch["app"] or rule["entity"] != ch["entity"]:
+        return False
+    if "key" in rule and str(rule["key"]) != ch["key"]:
+        return False
+    return all(str(ch["row"].get(f)) == str(v) for f, v in (rule.get("where") or {}).items())
+
+
+def unexpected_changes_check(before: dict, after: dict, keys: dict, scenario: dict) -> dict:
+    """Collateral-damage check: the right final result is not enough if something else was changed too."""
+    rules = allowed_changes(scenario)
+    bad = [c for c in changes(before, after, keys) if not any(_permits(r, c) for r in rules)]
+    return {"id": "no-unexpected-changes", "type": "changes", "critical": True, "passed": not bad, "expected": 0,
+            "actual": len(bad),
+            "detail": "; ".join(f"{c['change']} {c['app']}.{c['entity']} {c['key']}"
+                                + (f" ({', '.join(c['fields'])})" if c.get("fields") else "") for c in bad)[:400]}
+
+
 def verdict(results: list[dict]) -> str:
     if any(not r["passed"] and r["critical"] for r in results):
         return "FAILED"

@@ -22,3 +22,6 @@ variants:
   defective-no-screening:
     description: Converted agent releases the wire without risk screening.
     env: {AGENT_BUG: release_without_screening}
+  flaky-screening:
+    description: Inconsistent agent - screens correctly on most attempts but skips screening on attempt 3. Only repeated runs catch it.
+    env: {AGENT_BUG: flaky_screening}

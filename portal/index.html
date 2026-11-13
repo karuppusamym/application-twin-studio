@@ -167,6 +167,7 @@ const PAGES = {
         <div><label>Original automation</label><select id="x-a">${opt(originals, a => a.name)}</select></div>
         <div><label>Replacement</label><select id="x-b">${opt(repl, a => a.name)}<option value="">(none — single run)</option></select></div>
         <div><label>Negative test</label><select id="x-neg"><option value="">none</option>${scs.mutations.map(m => `<option value="m:${m.id}">${esc(m.title)}</option>`).join("")}${repl.flatMap(a => Object.entries(a.variants || {}).map(([k, v]) => `<option value="v:${k}">Defective replacement: ${esc(v.description)}</option>`)).join("")}</select></div>
+        <div><label title="Run the replacement several times; it passes only if every attempt passes">Replacement attempts</label><select id="x-rep"><option>1</option><option>3</option><option>5</option></select></div>
         <button id="x-go">Run</button><button id="x-suite" class="ghost">Run all scenarios</button></div>
       <p id="x-desc" class="mute"></p></div><div id="x-out"></div>`;
     const desc = () => { const s = scs.items.find(s => s.id === $("#x-sc").value); $("#x-desc").textContent = s ? s.description : ""; };
@@ -189,14 +190,14 @@ const PAGES = {
       const b = $("#x-b").value;
       if (!$("#x-sc").value) return out.innerHTML = `<div class="card">${badge("No scenario", "warn")} No scenario exists for this automation's process yet. See its <a href="#onboarding/${esc($("#x-a").value)}">onboarding report</a>.</div>`;
       if (!b) { const r = await api("/v1/runs", {method: "POST", body: {scenario_id: $("#x-sc").value, automation_id: $("#x-a").value, mutation_id: neg().mutation_id}}); return pollRun(r.id, out); }
-      const c = await api("/v1/comparisons", {method: "POST", body: {scenario_id: $("#x-sc").value, original_id: $("#x-a").value, replacement_id: b, ...neg()}});
+      const c = await api("/v1/comparisons", {method: "POST", body: {scenario_id: $("#x-sc").value, original_id: $("#x-a").value, replacement_id: b, ...neg(), repeat: Number($("#x-rep").value)}});
       pollCmp(c.id, out);
     };
     $("#x-suite").onclick = async () => {
-      const s = await api("/v1/suites", {method: "POST", body: {original_id: $("#x-a").value, replacement_id: $("#x-b").value, ...neg()}});
+      const s = await api("/v1/suites", {method: "POST", body: {original_id: $("#x-a").value, replacement_id: $("#x-b").value, ...neg(), repeat: Number($("#x-rep").value)}});
       clearInterval(timer);
       const tick = async () => { const d = await api("/v1/suites/" + s.id);
-        out.innerHTML = `<div class="card"><h2>Suite ${statusBadge(d.status)} <span class="mute" style="font-weight:400">${d.results.length}/${d.scenario_ids.length} scenarios</span></h2><table><tr><th>Scenario</th><th>Original</th><th>Replacement</th><th>Differences</th><th>Result</th><th></th></tr>${d.results.map(r => `<tr><td>${esc(r.scenario_id)}</td><td>${statusBadge(r.original)}</td><td>${statusBadge(r.replacement)}</td><td>${r.differences}</td><td>${statusBadge(r.result)}</td><td><a href="#execution/${r.comparison_id}">details</a></td></tr>`).join("")}</table></div>`;
+        out.innerHTML = `<div class="card"><h2>Suite ${statusBadge(d.status)} <span class="mute" style="font-weight:400">${d.results.length}/${d.scenario_ids.length} scenarios</span></h2><table><tr><th>Scenario</th><th>Original</th><th>Replacement</th><th>Differences</th><th>Attempts</th><th>Result</th><th></th></tr>${d.results.map(r => `<tr><td>${esc(r.scenario_id)}</td><td>${statusBadge(r.original)}</td><td>${statusBadge(r.replacement)}</td><td>${r.differences}</td><td>${r.consistency ? `${r.consistency.passed}/${r.consistency.attempts}` : "1"}</td><td>${statusBadge(r.result)}</td><td><a href="#execution/${r.comparison_id}">details</a></td></tr>`).join("")}</table></div>`;
         if (d.status !== "RUNNING") clearInterval(timer); };
       timer = setInterval(tick, 700); tick();
     };
@@ -229,7 +230,7 @@ function pollCmp(id, out) {
     const c = await api("/v1/comparisons/" + id); const cert = c.certificate;
     out.innerHTML = (cert ? `<div class="card"><h2>Result ${statusBadge(cert.result)} <span class="mute" style="font-weight:400">scenario ${esc(c.scenario_id)}</span></h2>
       <div class="kv"><div>Confidence</div><div>${statusBadge(cert.confidence)}</div><div>May qualify a migration</div><div>${cert.may_qualify_migration ? badge("yes", "ok") : badge("no", "warn")}</div>
-      <div>Business differences</div><div>${c.differences.length}</div>${c.mutation_id ? `<div>Injected twin defect</div><div>${esc(c.mutation_id)}</div>` : ""}</div>
+      <div>Business differences</div><div>${c.differences.length}</div>${c.consistency ? `<div>Replacement attempts</div><div>${badge(c.consistency.passed + "/" + c.consistency.attempts + " passed and matched", c.consistency.all_passed ? "ok" : "bad")}${(c.attempts || []).filter(x => x.status !== "PASSED" || !x.matches_original).map(x => ` <span class="mute">attempt ${x.attempt} failed</span>`).join("")}</div>` : ""}${c.mutation_id ? `<div>Injected twin defect</div><div>${esc(c.mutation_id)}</div>` : ""}</div>
       ${cert.limits.map(l => `<div class="note">${esc(l)}</div>`).join("")}
       ${c.differences.length ? `<h3>Differences in state, events or output</h3><table><tr><th>Where</th><th>Original</th><th>Replacement</th></tr>${c.differences.map(d => `<tr><td><code>${esc(d.path)}</code></td><td><code>${esc(JSON.stringify(d.original))}</code></td><td><code>${esc(JSON.stringify(d.replacement))}</code></td></tr>`).join("")}</table>` : ""}</div>`
       : `<div class="card"><h2>Running… ${statusBadge(c.status)}</h2>${c.error ? esc(c.error) : ""}</div>`)

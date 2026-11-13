@@ -11,7 +11,11 @@
    runners agreeing against a wrong twin still fail (`tests/test_e2e.py::test_wrong_twin_rule...`).
 5. **Confidence is stated, not implied.** Certificates carry `exploratory | model_validated |
    reference_validated` and the reasons they cannot go higher.
-6. **Uploaded content is data.** XAML is parsed, never executed; DTDs are rejected; archives are
+6. **Agents are judged on every attempt and on everything they touched.** `--repeat K` passes only if all K
+   attempts pass and match the original; `no-unexpected-changes` fails any changed row the scenario did not
+   expect. AI-authored pull requests cannot approve their own rules or rewrite their own oracle
+   (`tools/guard_ai_changes.py`).
+7. **Uploaded content is data.** XAML is parsed, never executed; DTDs are rejected; archives are
    size-limited and checked for path traversal; specs can only use allowlisted steps and functions.
 
 ## Request path
@@ -62,6 +66,9 @@ local profile.
 | Rollback | Previous bundle provisions | **Not built** |
 | Negative: wrong rule detected | — | **Met** |
 | Negative: defective replacement detected | — | **Met** |
+| Agent consistency (pass every attempt) | — | **Met** as a mechanism (`--repeat K`); flaky sample agent caught at 4/5. Sample agents are not LLM-driven |
+| Collateral changes detected | — | **Met** (`test_collateral_change_is_caught...`) |
+| AI-authored change guard | — | **Built** (`tools/guard_ai_changes.py`); runs in CI once the workflow is enabled |
 | Real UiPath package on licensed robot | — | **Not done** |
 | Real 3270 client conformance | — | **Not done** |
 | Real browser against the web twin | — | **Met** for one process (Playwright + Chromium) |

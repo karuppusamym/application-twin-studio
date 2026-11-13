@@ -1,3 +1,5 @@
+# Copy to .github/workflows/ci.yml to enable (pushing workflow files needs a GitHub token with the
+# "workflow" scope, or add it through the GitHub web editor).
 name: ci
 on: [push, pull_request]
 jobs:
@@ -8,9 +10,18 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - run: pip install -r requirements.txt
       - run: python -m ats validate
       - run: python -m pytest -q
+      - name: Every process, agents repeated 3 times
+        run: python -m ats all --repeat 3
+      - name: Guard AI-authored changes (no self-approval, independent oracle)
+        if: github.event_name == 'pull_request'
+        env:
+          ATS_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python tools/guard_ai_changes.py origin/${{ github.base_ref }}

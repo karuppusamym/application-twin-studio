@@ -145,7 +145,8 @@ def create_app(studio: Studio) -> FastAPI:
     def submit_comparison(body: dict):
         return studio.submit_comparison(scenario_id=body["scenario_id"], original_id=body["original_id"],
                                         replacement_id=body["replacement_id"], mutation_id=body.get("mutation_id"),
-                                        replacement_variant=body.get("replacement_variant"))
+                                        replacement_variant=body.get("replacement_variant"),
+                                        repeat=int(body.get("repeat") or 1))
 
     @app.get("/v1/comparisons")
     def comparisons():
@@ -162,7 +163,7 @@ def create_app(studio: Studio) -> FastAPI:
     @app.post("/v1/suites", status_code=202)
     def submit_suite(body: dict):
         return studio.submit_suite(body["original_id"], body["replacement_id"], body.get("replacement_variant"),
-                                   body.get("mutation_id"))
+                                   body.get("mutation_id"), int(body.get("repeat") or 1))
 
     @app.get("/v1/suites/{suite_id}")
     def suite(suite_id: str):

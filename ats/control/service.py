@@ -269,14 +269,15 @@ class Studio:
 
     # -- runs -------------------------------------------------------------
     def new_run(self, scenario_id: str, automation_id: str, mutation_id: str | None = None,
-                variant: str | None = None, label: str = "run") -> dict:
+                variant: str | None = None, label: str = "run", attempt: int | None = None) -> dict:
         self.scenario(scenario_id)
         automation = self.automation(automation_id)
         if variant and variant not in (automation.get("variants") or {}):
             raise NotFound(f"automation {automation_id} has no variant {variant}")
         doc = {"id": f"{label}-{time.strftime('%H%M%S')}-{secrets.token_hex(3)}", "kind": "run", "status": "QUEUED",
                "scenario_id": scenario_id, "automation_id": automation_id, "mutation_id": mutation_id, "variant": variant,
-               "created_at": _now(), "stages": [], "assertions": [], "runner": None, "env_id": None, "error": None}
+               "created_at": _now(), "stages": [], "assertions": [], "runner": None, "env_id": None, "error": None,
+               "attempt": attempt}
         return self.docs.put("run", doc)
 
     def submit_run(self, **kw: Any) -> dict:
@@ -326,6 +327,9 @@ class Studio:
                 return finish("ERROR", f"environment could not be provisioned: {exc}")
             doc["env_id"] = env.id
             stage("PROVISION+SEED", "OK", t, f"environment {env.id}, {len(env.apps)} twins, clock {env.clock}")
+            seeded = env.snapshot()  # baseline for the collateral-damage check
+            if doc.get("attempt"):
+                automation["env"] = {**(automation.get("env") or {}), "ATS_ATTEMPT": str(doc["attempt"])}
 
             t = time.monotonic()
             doc["status"] = "RUNNING"
@@ -349,6 +353,7 @@ class Studio:
             keys = {a: {e: ent["key"] for e, ent in s["entities"].items()} for a, s in specs.items()}
             results = validation.evaluate(scenario.get("assertions") or [], snapshot, result, keys)
             unmodeled = [c for c in snapshot["calls"] if c["operation"].startswith("(unmodeled)")]
+            results.append(validation.unexpected_changes_check(seeded, snapshot, keys, scenario))
             results.append({"id": "no-unmodeled-requests", "type": "calls", "critical": True, "passed": not unmodeled,
                             "expected": 0, "actual": len(unmodeled),
                             "detail": "; ".join(sorted({c['operation'] for c in unmodeled}))[:300]})
@@ -376,11 +381,14 @@ class Studio:
 
     # -- comparison -------------------------------------------------------
     def new_comparison(self, scenario_id: str, original_id: str, replacement_id: str, mutation_id: str | None = None,
-                       replacement_variant: str | None = None) -> dict:
+                       replacement_variant: str | None = None, repeat: int = 1) -> dict:
+        if not 1 <= int(repeat) <= 50:
+            raise Conflict("repeat must be between 1 and 50")
         self.scenario(scenario_id), self.automation(original_id), self.automation(replacement_id)
         doc = {"id": f"cmp-{time.strftime('%H%M%S')}-{secrets.token_hex(3)}", "kind": "comparison", "status": "RUNNING",
                "scenario_id": scenario_id, "original_id": original_id, "replacement_id": replacement_id,
-               "mutation_id": mutation_id, "replacement_variant": replacement_variant, "created_at": _now()}
+               "mutation_id": mutation_id, "replacement_variant": replacement_variant, "repeat": int(repeat),
+               "created_at": _now()}
         return self.docs.put("comparison", doc)
 
     def submit_comparison(self, **kw: Any) -> dict:
@@ -394,9 +402,20 @@ class Studio:
             a = self.execute_run(self.new_run(doc["scenario_id"], doc["original_id"], doc.get("mutation_id"), None, "orig")["id"])
             doc["original_run"] = a["id"]
             self.docs.put("comparison", doc)
-            b = self.execute_run(self.new_run(doc["scenario_id"], doc["replacement_id"], doc.get("mutation_id"),
-                                              doc.get("replacement_variant"), "repl")["id"])
+            # The replacement runs `repeat` times. Agents are not deterministic, so one pass proves little;
+            # the comparison only counts if EVERY attempt passes and matches the original (pass^k).
+            k = int(doc.get("repeat") or 1)
+            attempts = [self.execute_run(self.new_run(doc["scenario_id"], doc["replacement_id"], doc.get("mutation_id"),
+                                                      doc.get("replacement_variant"), "repl", i if k > 1 else None)["id"])
+                        for i in range(1, k + 1)]
+            b = next((r for r in attempts if r["status"] != "PASSED"), None) or                 next((r for r in attempts if r.get("business_view") != a.get("business_view")), attempts[0])
             doc["replacement_run"] = b["id"]
+            if k > 1:
+                doc["attempts"] = [{"attempt": i + 1, "run_id": r["id"], "status": r["status"],
+                                    "matches_original": r.get("business_view") == a.get("business_view")}
+                                   for i, r in enumerate(attempts)]
+                good = sum(1 for x in doc["attempts"] if x["status"] == "PASSED" and x["matches_original"])
+                doc["consistency"] = {"passed": good, "attempts": k, "all_passed": good == k}
             sides = {"original": a, "replacement": b}
             doc["sides"] = {k: {"run_id": r["id"], "status": r["status"], "verdict": r.get("verdict"), "env_id": r.get("env_id"),
                                 "runner": (r.get("runner") or {}).get("runner"),
@@ -421,6 +440,11 @@ class Studio:
                 {"verdict": a.get("verdict", "FAILED"), "runner": a["runner"]},
                 {"verdict": b.get("verdict", "FAILED"), "runner": b["runner"]}, doc["differences"], used, open_gaps)
             doc["certificate"]["lock"] = a.get("lock")
+            if k > 1:
+                doc["certificate"]["limits"].append(
+                    f"Replacement repeated {k} times: {doc['consistency']['passed']}/{k} attempts passed and matched the original.")
+            elif (self.automation(doc["replacement_id"]).get("tool") or "").startswith("agentic"):
+                doc["certificate"]["limits"].append("Agentic replacement ran once; run with repeat > 1 to measure consistency.")
             doc["status"] = "DONE"
         except Exception as exc:
             doc.update(status="ERROR", error=f"{type(exc).__name__}: {exc}")
@@ -429,14 +453,14 @@ class Studio:
 
     # -- suites -----------------------------------------------------------
     def submit_suite(self, original_id: str, replacement_id: str, replacement_variant: str | None = None,
-                     mutation_id: str | None = None) -> dict:
+                     mutation_id: str | None = None, repeat: int = 1) -> dict:
         process = self.automation(original_id).get("process")
         if self.automation(replacement_id).get("process") != process:
             raise Conflict("original and replacement automate different processes")
         scenario_ids = sorted(s["id"] for s in self.ws.scenarios().values() if s.get("process") == process)
         doc = {"id": f"suite-{time.strftime('%H%M%S')}-{secrets.token_hex(3)}", "kind": "suite", "status": "RUNNING",
                "original_id": original_id, "replacement_id": replacement_id, "replacement_variant": replacement_variant,
-               "mutation_id": mutation_id, "scenario_ids": scenario_ids, "results": [], "created_at": _now()}
+               "mutation_id": mutation_id, "repeat": int(repeat), "scenario_ids": scenario_ids, "results": [], "created_at": _now()}
         self.docs.put("suite", doc)
         self.pool.submit(self._execute_suite, doc["id"])
         return doc
@@ -446,12 +470,14 @@ class Studio:
         try:
             for sid in doc["scenario_ids"]:
                 c = self.execute_comparison(self.new_comparison(sid, doc["original_id"], doc["replacement_id"],
-                                                                doc.get("mutation_id"), doc.get("replacement_variant"))["id"])
+                                                                doc.get("mutation_id"), doc.get("replacement_variant"),
+                                                                doc.get("repeat") or 1)["id"])
                 doc["results"].append({"scenario_id": sid, "comparison_id": c["id"],
                                        "result": (c.get("certificate") or {}).get("result", "ERROR"),
                                        "original": (c.get("sides") or {}).get("original", {}).get("status"),
                                        "replacement": (c.get("sides") or {}).get("replacement", {}).get("status"),
-                                       "differences": len(c.get("differences") or [])})
+                                       "differences": len(c.get("differences") or []),
+                                       "consistency": c.get("consistency")})
                 self.docs.put("suite", doc)
             doc["status"] = "DONE"
         except Exception as exc:

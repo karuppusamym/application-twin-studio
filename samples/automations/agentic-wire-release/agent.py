@@ -25,7 +25,9 @@ if not wire["ok"]:
 if wire["fields"]["status"] != "PENDING":
     finish("SKIPPED")
 
-if os.environ.get("AGENT_BUG") == "release_without_screening":
+# flaky_screening simulates an inconsistent agent: right on most attempts, skips screening on attempt 3.
+bug = os.environ.get("AGENT_BUG")
+if bug == "release_without_screening" or (bug == "flaky_screening" and os.environ.get("ATS_ATTEMPT") == "3"):
     pay.call("ReleaseWire", {"wireId": wire_id})
     out.update(decision="CLEAR", action="RELEASE")
     finish("DONE")
