@@ -67,14 +67,14 @@ python -m pytest -q
 ### Sample set: 8 twins, 7 processes, 41 scenarios
 
 Twins: QA/QC workbench (web UI + REST + SQL), Customer Service CRM (web UI + REST + SQL), Core Banking host
-(3270 + mainframe REST API + SQL), Wire Payments (**SOAP** + SQL), Risk screening, Mortgage, KYC, Documents (REST).
+(3270 + mainframe REST API + host web front end + SQL), Wire Payments (**SOAP** + SQL), Risk screening, Mortgage, KYC, Documents (REST).
 
 | Process | Twins | Original | Replacement | Scenarios |
 |---|---|---|---|---|
 | loan-qc-review | qaqc, mortgage, kyc, documents, corebank | UiPath: web UI + 3270 + REST | agent: REST + 3270 | 12 |
 | address-change | crm, kyc, corebank | UiPath: web UI + REST + 3270 | agent: REST + 3270 | 8 |
 | wire-release | payments, risk, corebank | UiPath: SOAP + REST + mainframe API | agent: same interfaces | 9 |
-| account-closure | corebank | UiPath: 3270 only | agent: mainframe API only | 5 |
+| account-closure | corebank | UiPath: 3270 only | agent: mainframe API only; UiPath: host web front end only | 5 + 5 |
 | case-triage | qaqc + dependencies | Playwright: web UI in real Chromium | script: REST only | 3 |
 | batch-evaluate | qaqc + dependencies | Python batch: SQL + REST | (single run) | 1 |
 | loan-account-recon | mortgage, corebank, qaqc | Python batch: SQL + SQL + REST | (single run) | 3 |
@@ -85,6 +85,20 @@ Scenario kinds covered: success, missing data, mismatch, boundary values (exactl
 threshold), dependency timeout with retry, dependency outage, lost response after commit (idempotent
 retry), state conflict, not found, host rejection, validation failure, resume, interface substitution
 (terminal vs API), and "nothing to do".
+
+### Alternatives to green-screen automation
+
+The core banking twin offers the same host transactions three ways, so each migration path can be tested
+against the 3270 original:
+
+| Path | Real-world tools (examples) | Twin interface | Sample automation |
+|---|---|---|---|
+| Keep the terminal | UiPath Terminal, BlueZone, PCOMM | `tn3270` screens | `uipath-account-closure` |
+| Screens or programs as REST APIs | OpenLegacy, Rocket API, IBM z/OS Connect, ConnectiQ | `http` mainframe API | `agentic-account-closure` |
+| Web front end over the screens | IBM HATS, Rocket z/Presentation | `web` pages at `/ui/signon`, `/ui/inquiry`, `/ui/accounts/{id}` | `uipath-web-account-closure` |
+
+The API and web layouts are **demonstration designs**. A real product generates its own endpoints, field names
+and element ids; once one is chosen, change the twin to match its output or the tests prove nothing about it.
 
 Run everything:
 
@@ -117,7 +131,7 @@ update delete emit respond if set`. Mark each operation's `verification` honestl
 
 ## Limits (read this)
 
-Verified here (35 automated tests, 41 scenarios, Windows, Python 3.13): everything in the table above, against the
+Verified here (37 automated tests, 46 scenario checks, Windows, Python 3.13): everything in the table above, against the
 sample twins and hand-authored sample automations.
 
 **Not verified / not built:**

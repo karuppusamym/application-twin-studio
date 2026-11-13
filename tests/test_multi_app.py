@@ -114,3 +114,33 @@ def test_vb_regex_extraction_is_supported_and_bounded():
         vbexpr.evaluate('Regex.Match(x, "' + "a" * 300 + '").Value', scope)
     with pytest.raises(vbexpr.Unsupported):
         vbexpr.evaluate("System.IO.File.ReadAllText(x)", scope)
+
+
+def test_host_web_front_end_replaces_the_terminal(srv):
+    """3270 bot vs a bot on a HATS-style web front end over the same host transactions."""
+    st = srv.studio
+    for sid in ("closure-zero-balance", "closure-on-hold", "closure-not-found"):
+        c = st.execute_comparison(st.new_comparison(sid, "uipath-account-closure", "uipath-web-account-closure")["id"])
+        assert c["differences"] == [] and c["certificate"]["result"] == "EQUIVALENT_IN_SCOPE", sid
+        b = st.docs.get("run", c["replacement_run"])
+        callers = {call["caller"] for call in b["calls"]}
+        assert "ui:QCBOT01" in callers and "terminal" not in callers, (sid, callers)
+
+
+def test_host_web_pages_show_the_host_message_line(srv):
+    env = srv.studio.launch("closure-on-hold")
+    try:
+        web = env["bindings"]["corebank"]["web"]
+        with httpx.Client(follow_redirects=True) as c:
+            assert "Please sign in" in c.get(f"{web}/inquiry").text           # pages need a sign-on
+            bad = c.post(f"{web}/signon", data={"userid": "QCBOT01", "password": "wrong"})
+            assert "INVALID USERID OR PASSWORD" in bad.text
+            c.post(f"{web}/signon", data={"userid": "QCBOT01", "password": "TWIN2026"})
+            missing = c.post(f"{web}/inquiry", data={"account_id": "4999999999"})
+            assert "id='error-message'" in missing.text and "ACCOUNT NOT FOUND" in missing.text
+            page = c.post(f"{web}/inquiry", data={"account_id": "4000002003"})
+            assert "<dd id='field-status' data-field='status'>HOLD</dd>" in page.text
+            rejected = c.post(f"{web}/accounts/4000002003/_action/btn-close")
+            assert "ACCOUNT ON HOLD - CLOSE REJECTED</div>" in rejected.text and "ACCOUNT_ON_HOLD:" not in rejected.text
+    finally:
+        srv.studio.destroy(env["env_id"])

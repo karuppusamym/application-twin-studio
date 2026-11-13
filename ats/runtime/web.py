@@ -96,7 +96,7 @@ class WebUI:
             cookie = None
             if page.get("login"):
                 sid = secrets.token_hex(16)
-                self.sessions[sid] = {"user": form.get("username", "user")}
+                self.sessions[sid] = {"user": form.get((self.session_cfg or {}).get("user_field", "username"), "user")}
                 cookie = (cookie_name, sid)
             target = _fill(page.get("on_success", self.ui.get("home", "/ui")), {**params, **(res.body or {})})
             return self._redirect(target, cookie=cookie, _msg=page.get("success_message", ""))
@@ -107,7 +107,9 @@ class WebUI:
         body.update(expr.resolve(action.get("body") or {}, {"path": params, "form": form}))
         res = self.app.invoke(action["operation"], path=params, body=body, caller=caller)
         if not res.ok:
-            return self._redirect(here, _err=f"{res.body.get('code')}: {res.body.get('message')}")
+            # error_style "message": show only the host message line, as screen-to-web tools (HATS etc.) do
+            text = res.body.get("message") if self.ui.get("error_style") == "message" else f"{res.body.get('code')}: {res.body.get('message')}"
+            return self._redirect(here, _err=text)
         return self._redirect(_fill(action.get("on_success", page["path"]), {**params, **(res.body if isinstance(res.body, dict) else {})}),
                               _msg=action.get("success_message", f"{action['label']} completed"))
 

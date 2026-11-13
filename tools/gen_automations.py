@@ -318,4 +318,43 @@ arguments:
   in_AccountId: "{{inputs.account_id}}"
 outputs: {status: out_Status, message: out_Message}
 """)
-print("generated 3 UiPath projects in", OUT)
+# ---------------------------------------------------------------- account closure: host web front end (HATS-style)
+web_close_main = workflow("Main", [("in_HostWeb", "String"), ("in_HostUser", "String"), ("in_HostPassword", "String"),
+                                   ("in_AccountId", "String"), ("out_Status", "String"), ("out_Message", "String")],
+    seq("Account closure via host web front end",
+        open_browser('in_HostWeb + "/signon"', "Core banking web",
+            type_into("cb-userid", "in_HostUser", "Type user id"), type_into("cb-password", "in_HostPassword", "Type password"),
+            click("btn-signon", "Click Sign on"),
+            navigate('in_HostWeb + "/inquiry"', "Open account inquiry"),
+            type_into("cb-account", "in_AccountId", "Type account number"), click("btn-inquire", "Click Inquire"),
+            exists("field-status", "found", "Account page shown?"),
+            if_("Not found", get_text("error-message", "out_Message", "Read host message"),
+                seq("Close", click("btn-close", "Click Close account"),
+                    exists("message", "ok", "Success message shown?"),
+                    if_("ok", get_text("message", "out_Message", "Read host message"),
+                        get_text("error-message", "out_Message", "Read host message"), name="Closed?")),
+                name="Account found?"),
+            if_('out_Message = "ACCOUNT CLOSED"', assign("out_Status", S("CLOSED")), assign("out_Status", S("REJECTED")),
+                name="Set status")),
+        variables=[("found", "Boolean", None), ("ok", "Boolean", None)]))
+project("uipath-web-account-closure", "AccountClosureWeb",
+        "Closes an account through a web front end over the host screens instead of a 3270 terminal.",
+        {"Main.xaml": web_close_main}, """id: uipath-web-account-closure
+name: Account closure (UiPath, host web front end)
+tool: uipath
+version: 1.0.0
+role: replacement
+owner: unassigned (demo)
+process: account-closure
+objective: Same business outcome as the 3270 bot, but through a HATS-style web front end over the host transactions - browser selectors instead of screen positions.
+combination: Host web UI only (no terminal)
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_HostWeb: "{{corebank.web}}"
+  in_HostUser: "{{corebank.credentials.userid}}"
+  in_HostPassword: "{{corebank.credentials.password}}"
+  in_AccountId: "{{inputs.account_id}}"
+outputs: {status: out_Status, message: out_Message}
+""")
+print("generated 4 UiPath projects in", OUT)

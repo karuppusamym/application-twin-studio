@@ -1,0 +1,17 @@
+id: uipath-web-account-closure
+name: Account closure (UiPath, host web front end)
+tool: uipath
+version: 1.0.0
+role: replacement
+owner: unassigned (demo)
+process: account-closure
+objective: Same business outcome as the 3270 bot, but through a HATS-style web front end over the host transactions - browser selectors instead of screen positions.
+combination: Host web UI only (no terminal)
+entry: Main.xaml
+runner: xaml-replay
+arguments:
+  in_HostWeb: "{{corebank.web}}"
+  in_HostUser: "{{corebank.credentials.userid}}"
+  in_HostPassword: "{{corebank.credentials.password}}"
+  in_AccountId: "{{inputs.account_id}}"
+outputs: {status: out_Status, message: out_Message}

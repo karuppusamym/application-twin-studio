@@ -8,6 +8,10 @@ interfaces:
   - {id: host-3270, protocol: tn3270}
   - {id: host-api, protocol: http}
   - {id: host-db, protocol: sql}
+  # Web front end over the same transactions, the way a screen-to-web product
+  # (IBM HATS, Rocket z/Presentation, OpenLegacy web terminal...) would present them.
+  # DEMONSTRATION layout: a real product generates its own pages and element ids.
+  - {id: host-web, protocol: web}
 fidelity:
   contract: {required: true, status: modeled}
   behavior: {required: true, status: modeled}
@@ -51,6 +55,17 @@ operations:
       - load: {entity: operator, key: {$upper: $body.userid}, not_found: INVALID_LOGON}
       - require: {that: {eq: [$operator.password, $body.password]}, error: INVALID_LOGON}
       - respond: {status: 200, body: {userid: $operator.userid, name: $operator.name}}
+
+  - id: inquire-account
+    interface: host-web
+    verification: demonstration
+    input_schema:
+      type: object
+      required: [account_id]
+      properties: {account_id: {type: string, minLength: 1, maxLength: 10}}
+    steps:
+      - load: {entity: account, key: $body.account_id, not_found: ACCOUNT_NOT_FOUND}
+      - respond: {status: 200, body: $account}
 
   - id: get-account
     interface: host-api
@@ -283,3 +298,73 @@ terminal:
               on_error: {message: $error.message}
           default: {message: CONFIRM WITH Y}
         PF3: {goto: MENU}
+
+ui:
+  title: COREBANK Online (web)
+  home: /ui/inquiry
+  error_style: message
+  session: {login_page: /ui/signon, cookie: CBWEBSESSION, user_field: userid}
+  nav:
+    - {id: inquiry, label: Account inquiry, path: /ui/inquiry}
+  pages:
+    - id: signon
+      path: /ui/signon
+      type: form
+      public: true
+      login: true
+      title: Sign on (CBSN01)
+      operation: logon
+      on_success: /ui/inquiry
+      fields:
+        - {name: userid, label: User ID, id: cb-userid}
+        - {name: password, label: Password, id: cb-password, type: password}
+      submit: {id: btn-signon, label: Sign on}
+    - id: inquiry
+      path: /ui/inquiry
+      type: form
+      title: Account inquiry (CBAI01)
+      operation: inquire-account
+      on_success: /ui/accounts/{account_id}
+      fields:
+        - {name: account_id, label: Account number, id: cb-account}
+      submit: {id: btn-inquire, label: Inquire}
+    - id: account
+      path: /ui/accounts/{account_id}
+      type: detail
+      title: Account
+      operation: get-account
+      fields:
+        - {field: account_id, label: Account}
+        - {field: customer_id, label: Customer}
+        - {field: status, label: Status}
+        - {field: balance, label: Balance}
+        - {field: currency, label: Currency}
+        - {field: address_line, label: Address line}
+        - {field: city, label: City}
+        - {field: postal_code, label: Postal code}
+      actions:
+        - id: btn-post-memo
+          label: Post QC memo
+          operation: post-memo
+          success_message: MEMO POSTED
+          fields:
+            - {name: code, label: Memo code, id: memo-code, options: [QCPASS, QCHOLD, QCPEND]}
+            - {name: text, label: Memo text, id: memo-text}
+        - id: btn-update-address
+          label: Update address
+          operation: update-address
+          success_message: ADDRESS UPDATED
+          fields:
+            - {name: address_line, label: Address line, id: addr-line}
+            - {name: city, label: City, id: addr-city}
+            - {name: postal_code, label: Postal code, id: addr-postal}
+        - {id: btn-close, label: Close account, operation: close-account, success_message: ACCOUNT CLOSED}
+      related:
+        - id: memos
+          title: Memos
+          operation: list-memos
+          columns:
+            - {field: memo_id, label: Memo}
+            - {field: code, label: Code}
+            - {field: text, label: Text}
+            - {field: operator, label: Operator}
